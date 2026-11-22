@@ -145,7 +145,7 @@ class MainActivity : AppCompatActivity() {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, "LUNA_${System.currentTimeMillis()}.jpg")
                 put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/LunaPhotography")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "DCIM/Camera")
                     put(MediaStore.Images.Media.IS_PENDING, 1)
                 }
             }
