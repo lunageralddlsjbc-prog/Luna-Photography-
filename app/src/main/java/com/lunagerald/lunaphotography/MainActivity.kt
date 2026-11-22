@@ -128,7 +128,12 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                 triggerHaptic()
             }
         }
-        previewView.setOnTouchListener { _, event ->
+        val scaleDetector = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(d: android.view.ScaleGestureDetector): Boolean { isPinching = true; pinchStartZoom = currentZoom; return true }
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean { val z = (pinchStartZoom * d.scaleFactor).coerceIn(1f, 3f); currentZoom = z; currentCamera?.cameraControl?.setZoomRatio(z); val idx = if (z < 1.5f) 0 else if (z < 2.5f) 1 else 2; zoomPills.forEachIndexed { i, tv -> if (i == idx) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) } else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) } }; return true }
+            override fun onScaleEnd(d: android.view.ScaleGestureDetector) { isPinching = false }
+        })
+        previewView.setOnTouchListener { _, event -> scaleDetector.onTouchEvent(event); if (!isPinching && event.action == android.view.MotionEvent.ACTION_DOWN) { triggerHaptic(); showFocusRing(event.x, event.y); startTapToFocus(event.x, event.y) }; true }
             if (!isPinching && event.action == MotionEvent.ACTION_DOWN) {
                 triggerHaptic(); showFocusRing(event.x, event.y); startTapToFocus(event.x, event.y)
             }; true
