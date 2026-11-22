@@ -31,57 +31,94 @@ class MainActivity : AppCompatActivity() {
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
 
-        shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
+        shutterBtn.setOnClickListener { 
+            triggerHaptic()
+            takePhoto() 
+        }
         switchBtn.setOnClickListener { switchCamera(previewView) }
 
-        if (allPermissionsGranted()) startCamera(previewView)
-        else ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
+        if (allPermissionsGranted()) {
+            startCamera(previewView)
+        } else {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
+        }
     }
 
     private fun startCamera(previewView: PreviewView) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
-            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-            imageCapture = ImageCapture.Builder().build()
+            
+            val preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
+            
+            imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .build()
+                
             val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+            
             try {
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
             } catch (e: Exception) {
-                Toast.makeText(this, "Camera bind failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }, ContextCompat.getMainExecutor(this))
     }
 
     private fun takePhoto() {
         val capture = imageCapture ?: return
-        val file = File(externalCacheDir, "LUNA_${System.currentTimeMillis()}.jpg")
-        capture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(), cameraExecutor, object : ImageCapture.OnImageSavedCallback {
-            override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                runOnUiThread { Toast.makeText(this@MainActivity, "Saved to Gallery", Toast.LENGTH_SHORT).show() }
-            }
-            override fun onError(exception: ImageCaptureException) {
-                runOnUiThread { Toast.makeText(this@MainActivity, "Capture error", Toast.LENGTH_SHORT).show() }
-            }
-        })
+        try {
+            val directory = File(getExternalFilesDir(null), "LunaPhotos")
+            if (!directory.exists()) directory.mkdirs()
+            
+            val file = File(directory, "LUNA_${System.currentTimeMillis()}.jpg")
+            val outputOptions = ImageCapture.OutputFileOptions.Builder(file).build()
+            
+            capture.takePicture(outputOptions, cameraExecutor, object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved to LunaPhotos", Toast.LENGTH_SHORT).show() }
+                }
+                override fun onError(exception: ImageCaptureException) {
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Capture error: ${exception.message}", Toast.LENGTH_SHORT).show() }
+                }
+            })
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show() }
+        }
     }
 
     private fun switchCamera(previewView: PreviewView) {
-        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
+        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
+            CameraSelector.LENS_FACING_FRONT
+        } else {
+            CameraSelector.LENS_FACING_BACK
+        }
         startCamera(previewView)
     }
 
     private fun triggerHaptic() {
-        val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
-        if (vibrator.hasVibrator()) vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+        try {
+            val vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator
+            if (vibrator != null && vibrator.hasVibrator()) {
+                vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+            }
+        } catch (e: Exception) {
+            // Silently ignore to prevent any crash
+        }
     }
 
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all { ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED }
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+    }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) startCamera(findViewById(R.id.previewView))
+        if (requestCode == REQUEST_CODE && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            startCamera(findViewById(R.id.previewView))
+        }
     }
 
     companion object {
