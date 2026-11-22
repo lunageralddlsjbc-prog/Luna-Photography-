@@ -60,7 +60,7 @@ class MainActivity : AppCompatActivity() {
             }
             
             imageCapture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .build()
                 
             val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
@@ -101,7 +101,7 @@ class MainActivity : AppCompatActivity() {
                         runOnUiThread { Toast.makeText(this@MainActivity, "Saved to Gallery", Toast.LENGTH_SHORT).show() }
                     }
                     override fun onError(exception: ImageCaptureException) {
-                        runOnUiThread { Toast.makeText(this@MainActivity, "Capture error", Toast.LENGTH_SHORT).show() }
+                        runOnUiThread { Toast.makeText(this@MainActivity, "Capture error: " + exception.message, Toast.LENGTH_SHORT).show() }
                     }
                 })
             }
