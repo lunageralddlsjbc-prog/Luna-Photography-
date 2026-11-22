@@ -113,7 +113,7 @@ class QuickMenu(
             Triple(R.drawable.ic_styles, "Styles") { onStylesClick() },
             Triple(R.drawable.ic_depth, "Depth") { onDepthClick() },
             Triple(R.drawable.ic_night, "Night") { onNightClick() },
-            Triple(R.drawable.ic_format, "Format") { onFormatClick() },,
+            Triple(R.drawable.ic_format, "Format") { onFormatClick() },
         Triple(R.drawable.ic_iphone, "iPhone") { onIPhoneClick() },
         Triple(R.drawable.ic_ai, "AI Auto") { onAIClick() },
         )
