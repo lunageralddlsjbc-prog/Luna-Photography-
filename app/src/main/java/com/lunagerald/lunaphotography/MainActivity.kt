@@ -137,7 +137,6 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         else ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
     }
 
-    private var zoomAnimator: android.animation.ValueAnimator? = null
     private var currentZoom = 1f
     private var pinchStartZoom = 1f
     private var isPinching = false
@@ -146,9 +145,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     val zs = cam.cameraInfo.zoomState.value
     android.widget.Toast.makeText(this, "zoom min " + (zs?.minZoomRatio ?: -1f) + " max " + (zs?.maxZoomRatio ?: -1f), android.widget.Toast.LENGTH_SHORT).show()
     cam.cameraControl.setZoomRatio(ratio)
-        val start = currentZoom
-        zoomAnimator?.cancel()
-        zoomAnimator = android.animation.ValueAnimator.ofFloat(start, ratio.coerceIn(0.5f, 3f)).apply { duration = 300; interpolator = android.view.animation.DecelerateInterpolator(); addUpdateListener { val z = it.animatedValue as Float; currentZoom = z; cam.cameraControl.setZoomRatio(z) }; start() }
+    currentZoom = ratio
         zoomPills.forEachIndexed { i, tv ->
             if (i == activeIndex) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) }
             else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) }
