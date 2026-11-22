@@ -74,6 +74,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     private var timerIndex = 0
     private var exposureValue = 0f
     private var formatIndex = 0
+    private var styleIndex = 0
 
     private val aspectResolutions = arrayOf(
         Size(1280, 960),  // 4:3
@@ -135,28 +136,35 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         }
     }
 
+    // FIXED: Correct 2-argument getInstanceAsync(Context, CameraProvider)
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
-            val extensionsFuture = ExtensionsManager.getInstanceAsync(this)
+            val extensionsFuture = ExtensionsManager.getInstanceAsync(this, cameraProvider)
+            
             extensionsFuture.addListener({
                 val extensionsManager = extensionsFuture.get()
                 val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+                
                 val preview = Preview.Builder()
                     .setTargetResolution(aspectResolutions[aspectIndex])
                     .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+                
                 val captureBuilder = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                     .setTargetResolution(aspectResolutions[aspectIndex])
+                
                 var finalSelector = baseSelector
                 if (isNightMode && extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.NIGHT)) {
                     finalSelector = extensionsManager.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.NIGHT)
                 } else if (extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR)) {
                     finalSelector = extensionsManager.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
                 }
+                
                 imageCapture = captureBuilder.build()
                 imageCapture?.flashMode = flashModes[flashIndex]
+                
                 try {
                     cameraProvider.unbindAll()
                     currentCamera = cameraProvider.bindToLifecycle(this, finalSelector, preview, imageCapture)
@@ -333,6 +341,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     override fun onStyleCycle() {
         val styles = arrayOf(Look.NORMAL, Look.LUNA, Look.CINEMATIC)
         activeLook = styles[styleIndex % 3]
+        styleIndex = (styleIndex + 1) % 3
     }
     override fun onDepthToggle(enabled: Boolean) { isDepthEnabled = enabled; startCamera() }
     override fun onNightToggle(enabled: Boolean) { isNightMode = enabled; startCamera() }
