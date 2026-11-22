@@ -40,6 +40,7 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt // FIXED: Added missing import
 
 class MainActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
@@ -49,12 +50,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var focusRing: View
     private var currentCamera: Camera? = null
 
-    // UI State
     private val flashModes = arrayOf(ImageCapture.FLASH_MODE_AUTO, ImageCapture.FLASH_MODE_ON, ImageCapture.FLASH_MODE_OFF)
     private val flashLabels = arrayOf("⚡ AUTO", "⚡ ON", "⚡ OFF")
     private var flashIndex = 0
 
-    // NEW: quick menu hook
     private lateinit var quickMenu: QuickMenu
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,17 +82,14 @@ class MainActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.mPano)
         )
 
-        // NEW: build quick menu; gear toggles it
         quickMenu = QuickMenu(this) { look ->
             applyLookToCamera(look)
-            Toast.makeText(this, "Style: ${look.name}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Style: ${look.label}", Toast.LENGTH_SHORT).show()
         }
 
-        // Shutter & Switch
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
         switchBtn.setOnClickListener { switchCamera() }
 
-        // Flash Cycle
         flashPill.setOnClickListener {
             flashIndex = (flashIndex + 1) % flashModes.size
             imageCapture?.flashMode = flashModes[flashIndex]
@@ -101,15 +97,12 @@ class MainActivity : AppCompatActivity() {
             triggerHaptic()
         }
 
-        // Gear -> open iPhone-style quick menu
         gearPill.setOnClickListener { triggerHaptic(); quickMenu.toggle() }
 
-        // Zoom Pills
         zoomPills[0].setOnClickListener { setZoom(0.5f, 0, zoomPills) }
         zoomPills[1].setOnClickListener { setZoom(1f, 1, zoomPills) }
         zoomPills[2].setOnClickListener { setZoom(3f, 2, zoomPills) }
 
-        // Mode Pills (Visual selection only)
         val modeNames = arrayOf("TIME-LAPSE", "SLO-MO", "VIDEO", "PHOTO", "PORTRAIT", "PANORAMA")
         modePills.forEachIndexed { i, tv ->
             tv.setOnClickListener {
@@ -122,7 +115,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Tap-to-Focus
         previewView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
                 triggerHaptic()
@@ -164,7 +156,6 @@ class MainActivity : AppCompatActivity() {
             try {
                 provider.unbindAll()
                 currentCamera = provider.bindToLifecycle(this, selector, preview, imageCapture)
-                // NEW: exposure now driven by the selected quick-menu look (Night boosts, others auto)
                 applyLookToCamera(quickMenu.currentLook)
             } catch (e: Exception) {
                 Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -172,7 +163,6 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    // NEW: connect look -> auto-exposure (the only CameraX call we add)
     private fun applyLookToCamera(look: Look) {
         val cam = currentCamera ?: return
         val state = cam.cameraInfo.exposureState
@@ -242,7 +232,7 @@ class MainActivity : AppCompatActivity() {
                         contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
                         resolver.update(uri, contentValues, null, null)
                     }
-                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved (${quickMenu.currentLook.name})", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved (${quickMenu.currentLook.label})", Toast.LENGTH_SHORT).show() }
                 } catch (e: Exception) {
                     runOnUiThread { Toast.makeText(this@MainActivity, "Encode error: ${e.message}", Toast.LENGTH_SHORT).show() }
                 }
@@ -253,7 +243,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // ===== matrix now driven by the selected look (the "simulated AI" enhancement) =====
+    // ===== Matrix driven by the selected look (Simulated AI enhancement) =====
     private fun applyProPipeline(src: Bitmap, rotation: Int): Bitmap {
         val rotated = if (rotation != 0) {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }

@@ -14,10 +14,10 @@ import android.widget.TextView
 import kotlin.math.roundToInt
 
 enum class Look(
-    val name: String,
+    val label: String,
     val swatch: Int,
     val matrix: FloatArray,
-    val exposureRatio: Float   // 0 = pure auto; >0 = forced brighter (Night)
+    val exposureRatio: Float
 ) {
     NORMAL("Normal", 0xFF8A8A8A.toInt(), floatArrayOf(
         1.05f,0f,0f,0f,4f,  0f,1.03f,0f,0f,3f,  0f,0f,1.02f,0f,1f,  0f,0f,0f,1f,0f), 0f),
@@ -59,26 +59,26 @@ class QuickMenu(
                 setColor(0xF2111111.toInt())
                 cornerRadii = floatArrayOf(dp(22f), dp(22f), dp(22f), dp(22f), 0f, 0f, 0f, 0f)
             }
-            setPadding(dp(16f), dp(18f), dp(16f), dp(24f))
+            setPadding(dp(16), dp(18), dp(16), dp(24))
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM
             )
-            setOnClickListener { /* absorb taps so scrim click doesn't close */ }
+            setOnClickListener { /* absorb taps */ }
         }
 
         panel.addView(TextView(activity).apply {
             text = "Photographic Styles"
             setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
-            setPadding(0, 0, 0, dp(2f))
+            textSize = 17f
+            setPadding(0, 0, 0, dp(2))
         })
         panel.addView(TextView(activity).apply {
             text = "Swipe to choose a look · Night boosts exposure"
             setTextColor(0xB3FFFFFF.toInt())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            setPadding(0, 0, 0, dp(14f))
+            textSize = 12f
+            setPadding(0, 0, 0, dp(14))
         })
 
         val row = LinearLayout(activity).apply {
@@ -103,30 +103,30 @@ class QuickMenu(
     private fun buildCard(look: Look): LinearLayout {
         val bg = GradientDrawable().apply {
             setColor(0x1FFFFFFF.toInt())
-            cornerRadius = dp(14f).toFloat()
+            cornerRadius = dp(14f)
             setStroke(0, Color.TRANSPARENT)
         }
         val swatch = View(activity).apply {
             background = GradientDrawable().apply {
                 setColor(look.swatch)
-                cornerRadius = dp(10f).toFloat()
+                cornerRadius = dp(10f)
             }
-            layoutParams = LinearLayout.LayoutParams(dp(56f), dp(56f))
+            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
         }
         val label = TextView(activity).apply {
-            text = look.name
+            text = look.label
             setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            textSize = 11f
             gravity = Gravity.CENTER
-            setPadding(0, dp(6f), 0, 0)
+            setPadding(0, dp(6), 0, 0)
         }
         val card = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             background = bg
-            setPadding(dp(10f), dp(10f), dp(10f), dp(8f))
+            setPadding(dp(10), dp(10), dp(10), dp(8))
             val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            lp.marginEnd = dp(10f)
+            lp.marginEnd = dp(10)
             layoutParams = lp
             isClickable = true
             addView(swatch)
@@ -144,9 +144,9 @@ class QuickMenu(
 
     private fun refreshSelection() {
         for ((card, bg) in cards) {
-            val selected = (card.getChildAt(1) as TextView).text == currentLook.name
+            val selected = (card.getChildAt(1) as TextView).text == currentLook.label
             if (selected) {
-                bg.setStroke(dp(2f), 0xFFFFD60A.toInt())
+                bg.setStroke(dp(2), 0xFFFFD60A.toInt())
                 bg.setColor(0x33FFFFFF.toInt())
             } else {
                 bg.setStroke(0, Color.TRANSPARENT)
@@ -161,16 +161,19 @@ class QuickMenu(
         shown = true
         root.visibility = View.VISIBLE
         root.animate().alpha(1f).setDuration(160).start()
-        panel.translationY = dp(80f).toFloat()
+        panel.translationY = dp(80).toFloat()
         panel.animate().translationY(0f).setDuration(220).start()
     }
 
     fun hide() {
         shown = false
         root.animate().alpha(0f).setDuration(140).withEndAction { root.visibility = View.GONE }.start()
-        panel.animate().translationY(dp(80f).toFloat()).setDuration(160).start()
+        panel.animate().translationY(dp(80).toFloat()).setDuration(160).start()
     }
 
     private fun dp(v: Int): Int =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), activity.resources.displayMetrics).roundToInt()
+
+    private fun dp(v: Float): Float =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, activity.resources.displayMetrics)
 }
