@@ -154,7 +154,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                     .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 
                 val captureBuilder = ImageCapture.Builder()
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                     .setTargetResolution(aspectResolutions[aspectIndex])
                 
                 var finalSelector = baseSelector
