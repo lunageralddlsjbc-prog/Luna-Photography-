@@ -118,7 +118,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         gearPill.setOnClickListener { triggerHaptic(); quickMenu.toggle() }
         zoomPills[0].setOnClickListener { setZoom(1f, 0, zoomPills) }
         zoomPills[1].setOnClickListener { setZoom(2f, 1, zoomPills) }
-        zoomPills[2].setOnClickListener { setZoom(5f, 2, zoomPills) }
+        zoomPills[2].setOnClickListener { setZoom(3f, 2, zoomPills) }
         val modeNames = arrayOf("TIME-LAPSE", "SLO-MO", "VIDEO", "PHOTO", "PORTRAIT", "PANORAMA")
         modePills.forEachIndexed { i, tv ->
             tv.setOnClickListener {
