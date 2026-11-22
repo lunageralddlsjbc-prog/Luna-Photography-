@@ -145,7 +145,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         val cam = currentCamera ?: return
     val zs = cam.cameraInfo.zoomState.value
     android.widget.Toast.makeText(this, "zoom min " + (zs?.minZoomRatio ?: -1f) + " max " + (zs?.maxZoomRatio ?: -1f), android.widget.Toast.LENGTH_SHORT).show()
-    cam.cameraControl.setZoomRatio(1f)
+    cam.cameraControl.setZoomRatio(ratio)
         val start = currentZoom
         zoomAnimator?.cancel()
         zoomAnimator = android.animation.ValueAnimator.ofFloat(start, ratio.coerceIn(0.5f, 3f)).apply { duration = 300; interpolator = android.view.animation.DecelerateInterpolator(); addUpdateListener { val z = it.animatedValue as Float; currentZoom = z; cam.cameraControl.setZoomRatio(z) }; start() }
