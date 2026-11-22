@@ -18,6 +18,7 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.MediaStore
+import android.util.Size
 import android.view.MotionEvent
 import android.view.View
 import android.widget.ImageButton
@@ -40,7 +41,7 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import kotlin.math.roundToInt // FIXED: Added missing import
+import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
@@ -62,6 +63,9 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         previewView = findViewById(R.id.previewView)
+        // FIX 1: TextureView path -> frames synced to display refresh -> smooth, video-like motion
+        previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
+
         focusRing = findViewById(R.id.focusRing)
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
@@ -145,9 +149,12 @@ class MainActivity : AppCompatActivity() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             val provider = future.get()
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
+            // FIX 2: lighter 720p preview stream -> weak GPU can push more fps -> smoother
+            val preview = Preview.Builder()
+                .setTargetResolution(Size(1280, 720))
+                .build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
             imageCapture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .build()
