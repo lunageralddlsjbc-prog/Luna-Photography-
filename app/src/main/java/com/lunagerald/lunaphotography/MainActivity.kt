@@ -143,7 +143,6 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     private fun setZoom(ratio: Float, activeIndex: Int, zoomPills: List<TextView>) {
         val cam = currentCamera ?: return
     val zs = cam.cameraInfo.zoomState.value
-    android.widget.Toast.makeText(this, "zoom min " + (zs?.minZoomRatio ?: -1f) + " max " + (zs?.maxZoomRatio ?: -1f), android.widget.Toast.LENGTH_SHORT).show()
     cam.cameraControl.setZoomRatio(ratio)
     currentZoom = ratio
         zoomPills.forEachIndexed { i, tv ->
