@@ -41,6 +41,7 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ImageCaptureExtender
+import androidx.camera.extensions.PreviewExtender
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -90,8 +91,8 @@ class MainActivity : AppCompatActivity() {
                 imageCapture?.flashMode = flashModes[flashIndex]
                 flashPill.text = flashLabels[flashIndex]
             },
-            onStyleChange = { look -> activeLook = look; applyLookToCamera(look, isNightMode) },
-            onNightToggle = { nightOn -> isNightMode = nightOn; applyLookToCamera(activeLook, isNightMode) }
+            onStyleChange = { look -> activeLook = look; startCamera() }, // Restart camera to apply live bokeh
+            onNightToggle = { nightOn -> isNightMode = nightOn; startCamera() }
         )
 
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
@@ -140,23 +141,30 @@ class MainActivity : AppCompatActivity() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             val provider = future.get()
-            val preview = Preview.Builder().setTargetResolution(Size(1280, 720)).build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
             val selector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
             
-            // REQUESTED: Keep full resolution, let device ISP do tone mapping
-            val captureBuilder = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            // 1. Setup Preview with LIVE BOKEH for Cinematic Mode
+            val previewBuilder = Preview.Builder().setTargetResolution(Size(1280, 720))
+            val previewExtender = PreviewExtender.create(previewBuilder, selector)
             
-            // REQUESTED: Use Multi-Frame Night Mode / HDR Extension to reduce noise and keep detail
-            val extender = ImageCaptureExtender.create(captureBuilder, selector)
-            if (extender.isExtensionAvailable) {
-                extender.enableExtension(ExtensionMode.NIGHT)
-            } else {
-                val hdrExtender = ImageCaptureExtender.create(captureBuilder, selector)
-                if (hdrExtender.isExtensionAvailable) {
-                    hdrExtender.enableExtension(ExtensionMode.HDR)
+            // If Cinematic mode is active, try to enable Bokeh/Portrait for live depth effect
+            if (activeLook == Look.CINEMATIC) {
+                if (previewExtender.isExtensionAvailable(ExtensionMode.BOKEH)) {
+                    previewExtender.enableExtension(ExtensionMode.BOKEH)
+                } else if (previewExtender.isExtensionAvailable(ExtensionMode.PORTRAIT)) {
+                    previewExtender.enableExtension(ExtensionMode.PORTRAIT)
                 }
+            }
+            val preview = previewBuilder.build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+            
+            // 2. Setup Image Capture with HDR/Night
+            val captureBuilder = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            val captureExtender = ImageCaptureExtender.create(captureBuilder, selector)
+            
+            if (isNightMode) {
+                if (captureExtender.isExtensionAvailable(ExtensionMode.NIGHT)) captureExtender.enableExtension(ExtensionMode.NIGHT)
+            } else {
+                if (captureExtender.isExtensionAvailable(ExtensionMode.HDR)) captureExtender.enableExtension(ExtensionMode.HDR)
             }
             
             imageCapture = captureBuilder.build()
@@ -165,7 +173,6 @@ class MainActivity : AppCompatActivity() {
             try {
                 provider.unbindAll()
                 currentCamera = provider.bindToLifecycle(this, selector, preview, imageCapture)
-                applyLookToCamera(activeLook, isNightMode)
             } catch (e: Exception) {
                 Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
@@ -186,17 +193,6 @@ class MainActivity : AppCompatActivity() {
             }
         })
         flipOut.start()
-    }
-
-    private fun applyLookToCamera(look: Look, nightMode: Boolean) {
-        val cam = currentCamera ?: return
-        val state = cam.cameraInfo.exposureState
-        if (!state.isExposureCompensationSupported) return
-        val upper = state.exposureCompensationRange.upper
-        // If Night Extension is active, the ISP handles exposure perfectly. We only apply a very conservative 30% boost max to prevent blown-out lights and grey skies.
-        val ratio = if (nightMode) 0.3f else look.exposureRatio
-        val idx = (ratio * upper).roundToInt()
-        cam.cameraControl.setExposureCompensationIndex(idx)
     }
 
     private fun startTapToFocus(x: Float, y: Float) {
@@ -267,7 +263,9 @@ class MainActivity : AppCompatActivity() {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
             Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { if (it != src) src.recycle() }
         } else src
-        val matrix = if (isNightMode) Look.NIGHT.matrix else activeLook.matrix
+        
+        // Apply Cinematic Matrix if active, otherwise use selected look
+        val matrix = if (activeLook == Look.CINEMATIC) Look.CINEMATIC.matrix else activeLook.matrix
         val cm = ColorMatrix().apply { set(matrix) }
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(cm) }
         val result = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
