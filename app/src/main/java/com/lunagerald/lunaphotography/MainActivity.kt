@@ -128,9 +128,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                 triggerHaptic()
             }
         }
-        val scaleDetector = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() { override fun onScaleBegin(d: android.view.ScaleGestureDetector): Boolean { isPinching = true; pinchStartZoom = currentZoom; zoomAnimator?.cancel(); return true } override fun onScale(d: android.view.ScaleGestureDetector): Boolean { val z = (pinchStartZoom * d.scaleFactor).coerceIn(0.5f, 3f); currentZoom = z; currentCamera?.cameraControl?.setZoomRatio(z); return true } override fun onScaleEnd(d: android.view.ScaleGestureDetector) { isPinching = false } })
         previewView.setOnTouchListener { _, event ->
-            scaleDetector.onTouchEvent(event); if (!isPinching && event.action == MotionEvent.ACTION_DOWN) {
+            if (!isPinching && event.action == MotionEvent.ACTION_DOWN) {
                 triggerHaptic(); showFocusRing(event.x, event.y); startTapToFocus(event.x, event.y)
             }; true
         }
