@@ -173,7 +173,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                     .setTargetResolution(aspectResolutions[aspectIndex])
                 
                 var finalSelector = baseSelector
-                if (isNightMode && extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.NIGHT)) {
+                if (false && isNightMode && extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.NIGHT)) {
                     finalSelector = extensionsManager.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.NIGHT)
                 } else if (extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR)) {
                     finalSelector = extensionsManager.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
