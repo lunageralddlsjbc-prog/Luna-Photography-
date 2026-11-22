@@ -5,43 +5,37 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
+import android.widget.GridLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlin.math.roundToInt
 
-enum class Look(
-    val label: String,
-    val swatch: Int,
-    val matrix: FloatArray,
-    val exposureRatio: Float
-) {
-    NORMAL("Normal", 0xFF8A8A8A.toInt(), floatArrayOf(
-        1.05f,0f,0f,0f,4f,  0f,1.03f,0f,0f,3f,  0f,0f,1.02f,0f,1f,  0f,0f,0f,1f,0f), 0f),
-    VIBRANT("Vibrant", 0xFFE23B3B.toInt(), floatArrayOf(
-        1.10f,0f,0f,0f,6f,  0f,1.08f,0f,0f,3f,  0f,0f,1.06f,0f,0f,  0f,0f,0f,1f,0f), 0f),
-    WARM("Warm", 0xFFE08A3C.toInt(), floatArrayOf(
-        1.12f,0f,0f,0f,10f, 0f,1.05f,0f,0f,5f,  0f,0f,0.95f,0f,0f,  0f,0f,0f,1f,0f), 0f),
-    COOL("Cool", 0xFF3CA0E0.toInt(), floatArrayOf(
-        0.95f,0f,0f,0f,0f,  0f,1.02f,0f,0f,3f,  0f,0f,1.12f,0f,8f,  0f,0f,0f,1f,0f), 0f),
-    NIGHT("Night", 0xFF1E2A5A.toInt(), floatArrayOf(
-        1.10f,0f,0f,0f,22f, 0f,1.08f,0f,0f,16f, 0f,0f,1.05f,0f,10f, 0f,0f,0f,1f,0f), 0.8f)
+enum class Look(val label: String, val matrix: FloatArray, val exposureRatio: Float) {
+    NORMAL("Normal", floatArrayOf(1.05f,0f,0f,0f,4f, 0f,1.03f,0f,0f,3f, 0f,0f,1.02f,0f,1f, 0f,0f,0f,1f,0f), 0f),
+    VIBRANT("Vibrant", floatArrayOf(1.10f,0f,0f,0f,6f, 0f,1.08f,0f,0f,3f, 0f,0f,1.06f,0f,0f, 0f,0f,0f,1f,0f), 0f),
+    WARM("Warm", floatArrayOf(1.12f,0f,0f,0f,10f, 0f,1.05f,0f,0f,5f, 0f,0f,0.95f,0f,0f, 0f,0f,0f,1f,0f), 0f),
+    COOL("Cool", floatArrayOf(0.95f,0f,0f,0f,0f, 0f,1.02f,0f,0f,3f, 0f,0f,1.12f,0f,8f, 0f,0f,0f,1f,0f), 0f),
+    NIGHT("Night", floatArrayOf(1.10f,0f,0f,0f,22f, 0f,1.08f,0f,0f,16f, 0f,0f,1.05f,0f,10f, 0f,0f,0f,1f,0f), 0.8f)
 }
 
 class QuickMenu(
     private val activity: Activity,
-    private val onLookChanged: (Look) -> Unit
+    private val onFlashCycle: () -> Unit,
+    private val onStyleChange: (Look) -> Unit,
+    private val onNightToggle: (Boolean) -> Unit
 ) {
-    var currentLook: Look = Look.NORMAL
-        private set
-
     private val root: FrameLayout
-    private val panel: LinearLayout
-    private val cards = ArrayList<Pair<LinearLayout, GradientDrawable>>()
+    private val sheet: LinearLayout
     private var shown = false
+    private var startY = 0f
+
+    private var currentStyle = Look.NORMAL
+    private var isNightMode = false
 
     init {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
@@ -53,13 +47,13 @@ class QuickMenu(
             setOnClickListener { hide() }
         }
 
-        panel = LinearLayout(activity).apply {
+        sheet = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                setColor(0xF2111111.toInt())
-                cornerRadii = floatArrayOf(dp(22f), dp(22f), dp(22f), dp(22f), 0f, 0f, 0f, 0f)
+                setColor(0xFF1C1C1E.toInt()) // iPhone dark gray
+                cornerRadii = floatArrayOf(dp(20f), dp(20f), dp(20f), dp(20f), 0f, 0f, 0f, 0f)
             }
-            setPadding(dp(16), dp(18), dp(16), dp(24))
+            setPadding(dp(16), dp(12), dp(16), dp(24))
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -68,91 +62,144 @@ class QuickMenu(
             setOnClickListener { /* absorb taps */ }
         }
 
-        panel.addView(TextView(activity).apply {
-            text = "Photographic Styles"
+        // Drag handle
+        val handle = View(activity).apply {
+            background = GradientDrawable().apply {
+                setColor(0xFF3A3A3C.toInt())
+                cornerRadius = dp(2f).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(36), dp(4)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                setMargins(0, 0, 0, dp(12))
+            }
+        }
+        sheet.addView(handle)
+
+        // Title
+        val title = TextView(activity).apply {
+            text = "Camera Controls"
             setTextColor(Color.WHITE)
             textSize = 17f
-            setPadding(0, 0, 0, dp(2))
-        })
-        panel.addView(TextView(activity).apply {
-            text = "Swipe to choose a look · Night boosts exposure"
-            setTextColor(0xB3FFFFFF.toInt())
-            textSize = 12f
-            setPadding(0, 0, 0, dp(14))
-        })
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(16))
+        }
+        sheet.addView(title)
 
-        val row = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
+        // 3-column grid
+        val grid = GridLayout(activity).apply {
+            columnCount = 3
+            rowCount = 3
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
         }
-        for (look in Look.entries) row.addView(buildCard(look))
 
-        panel.addView(HorizontalScrollView(activity).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(row)
-        })
+        val items = listOf(
+            Triple("⚡", "Flash") { onFlashCycle() },
+            Triple("●", "Live") { toast("Live Photo coming soon") },
+            Triple("⬜", "Aspect") { toast("Aspect ratio coming soon") },
+            Triple("⏱", "Timer") { toast("Timer coming soon") },
+            Triple("☀", "Exposure") { toast("Auto exposure active") },
+            Triple("🎨", "Styles") { cycleStyle() },
+            Triple("◐", "Depth") { toast("Depth control coming soon") },
+            Triple("🌙", "Night") { toggleNight() },
+            Triple("📄", "Format") { toast("Format settings coming soon") }
+        )
 
-        root.addView(panel)
+        for ((icon, label, action) in items) {
+            grid.addView(buildItem(icon, label, action))
+        }
+
+        sheet.addView(grid)
+        root.addView(sheet)
         content.addView(root)
-        refreshSelection()
+
+        // Drag to close
+        sheet.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> startY = event.rawY
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = event.rawY - startY
+                    if (dy > 0) {
+                        sheet.translationY = dy
+                        if (dy > dp(100).toFloat()) hide()
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (sheet.translationY < dp(100).toFloat()) {
+                        sheet.animate().translationY(0f).setDuration(200).start()
+                    }
+                }
+            }
+            true
+        }
     }
 
-    private fun buildCard(look: Look): LinearLayout {
-        val bg = GradientDrawable().apply {
-            setColor(0x1FFFFFFF.toInt())
-            cornerRadius = dp(14f)
-            setStroke(0, Color.TRANSPARENT)
-        }
-        val swatch = View(activity).apply {
-            background = GradientDrawable().apply {
-                setColor(look.swatch)
-                cornerRadius = dp(10f)
+    private fun buildItem(icon: String, label: String, action: () -> Unit): View {
+        val item = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            layoutParams = GridLayout.LayoutParams().apply {
+                width = 0
+                height = ViewGroup.LayoutParams.WRAP_CONTENT
+                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
             }
-            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+            isClickable = true
+            setOnClickListener { action() }
         }
-        val label = TextView(activity).apply {
-            text = look.label
+
+        val iconView = TextView(activity).apply {
+            text = icon
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(0xFF2C2C2E.toInt()) // Dark circle
+                shape = GradientDrawable.OVAL
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+        }
+        item.addView(iconView)
+
+        val labelView = TextView(activity).apply {
+            text = label
             setTextColor(Color.WHITE)
             textSize = 11f
             gravity = Gravity.CENTER
             setPadding(0, dp(6), 0, 0)
         }
-        val card = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            background = bg
-            setPadding(dp(10), dp(10), dp(10), dp(8))
-            val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            lp.marginEnd = dp(10)
-            layoutParams = lp
-            isClickable = true
-            addView(swatch)
-            addView(label)
-            setOnClickListener {
-                currentLook = look
-                refreshSelection()
-                onLookChanged(look)
-                postDelayed({ hide() }, 220)
-            }
-        }
-        cards.add(card to bg)
-        return card
+        item.addView(labelView)
+
+        return item
     }
 
-    private fun refreshSelection() {
-        for ((card, bg) in cards) {
-            val selected = (card.getChildAt(1) as TextView).text == currentLook.label
-            if (selected) {
-                bg.setStroke(dp(2), 0xFFFFD60A.toInt())
-                bg.setColor(0x33FFFFFF.toInt())
-            } else {
-                bg.setStroke(0, Color.TRANSPARENT)
-                bg.setColor(0x1FFFFFFF.toInt())
-            }
+    private fun cycleStyle() {
+        val styles = listOf(Look.NORMAL, Look.VIBRANT, Look.WARM, Look.COOL)
+        val idx = styles.indexOf(currentStyle)
+        currentStyle = styles[(idx + 1) % styles.size]
+        if (isNightMode) toggleNight() // Turn off night if switching styles
+        onStyleChange(currentStyle)
+        toast("Style: ${currentStyle.label}")
+    }
+
+    private fun toggleNight() {
+        isNightMode = !isNightMode
+        if (isNightMode) {
+            onNightToggle(true)
+            toast("Night Mode: ON")
+        } else {
+            onNightToggle(false)
+            onStyleChange(currentStyle)
+            toast("Night Mode: OFF")
         }
+    }
+
+    private fun toast(msg: String) {
+        android.widget.Toast.makeText(activity, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
 
     fun toggle() = if (shown) hide() else show()
@@ -160,15 +207,15 @@ class QuickMenu(
     fun show() {
         shown = true
         root.visibility = View.VISIBLE
-        root.animate().alpha(1f).setDuration(160).start()
-        panel.translationY = dp(80).toFloat()
-        panel.animate().translationY(0f).setDuration(220).start()
+        sheet.translationY = dp(300).toFloat()
+        root.animate().alpha(1f).setDuration(200).start()
+        sheet.animate().translationY(0f).setDuration(300).start()
     }
 
     fun hide() {
         shown = false
-        root.animate().alpha(0f).setDuration(140).withEndAction { root.visibility = View.GONE }.start()
-        panel.animate().translationY(dp(80).toFloat()).setDuration(160).start()
+        root.animate().alpha(0f).setDuration(150).withEndAction { root.visibility = View.GONE }.start()
+        sheet.animate().translationY(dp(300).toFloat()).setDuration(200).start()
     }
 
     private fun dp(v: Int): Int =

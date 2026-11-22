@@ -56,6 +56,8 @@ class MainActivity : AppCompatActivity() {
     private var flashIndex = 0
 
     private lateinit var quickMenu: QuickMenu
+    private var activeLook: Look = Look.NORMAL
+    private var isNightMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,7 +65,6 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         previewView = findViewById(R.id.previewView)
-        // FIX 1: TextureView path -> frames synced to display refresh -> smooth, video-like motion
         previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
 
         focusRing = findViewById(R.id.focusRing)
@@ -86,10 +87,23 @@ class MainActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.mPano)
         )
 
-        quickMenu = QuickMenu(this) { look ->
-            applyLookToCamera(look)
-            Toast.makeText(this, "Style: ${look.label}", Toast.LENGTH_SHORT).show()
-        }
+        // Initialize the new iPhone-style quick menu
+        quickMenu = QuickMenu(
+            this,
+            onFlashCycle = {
+                flashIndex = (flashIndex + 1) % flashModes.size
+                imageCapture?.flashMode = flashModes[flashIndex]
+                flashPill.text = flashLabels[flashIndex]
+            },
+            onStyleChange = { look ->
+                activeLook = look
+                applyLookToCamera(look, isNightMode)
+            },
+            onNightToggle = { nightOn ->
+                isNightMode = nightOn
+                applyLookToCamera(activeLook, isNightMode)
+            }
+        )
 
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
         switchBtn.setOnClickListener { switchCamera() }
@@ -101,6 +115,7 @@ class MainActivity : AppCompatActivity() {
             triggerHaptic()
         }
 
+        // Gear button opens the new quick menu
         gearPill.setOnClickListener { triggerHaptic(); quickMenu.toggle() }
 
         zoomPills[0].setOnClickListener { setZoom(0.5f, 0, zoomPills) }
@@ -149,7 +164,6 @@ class MainActivity : AppCompatActivity() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             val provider = future.get()
-            // FIX 2: lighter 720p preview stream -> weak GPU can push more fps -> smoother
             val preview = Preview.Builder()
                 .setTargetResolution(Size(1280, 720))
                 .build().also {
@@ -163,19 +177,20 @@ class MainActivity : AppCompatActivity() {
             try {
                 provider.unbindAll()
                 currentCamera = provider.bindToLifecycle(this, selector, preview, imageCapture)
-                applyLookToCamera(quickMenu.currentLook)
+                applyLookToCamera(activeLook, isNightMode)
             } catch (e: Exception) {
                 Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun applyLookToCamera(look: Look) {
+    private fun applyLookToCamera(look: Look, nightMode: Boolean) {
         val cam = currentCamera ?: return
         val state = cam.cameraInfo.exposureState
         if (!state.isExposureCompensationSupported) return
         val upper = state.exposureCompensationRange.upper
-        val idx = (look.exposureRatio * upper).roundToInt()
+        val ratio = if (nightMode) Look.NIGHT.exposureRatio else look.exposureRatio
+        val idx = (ratio * upper).roundToInt()
         cam.cameraControl.setExposureCompensationIndex(idx)
     }
 
@@ -239,7 +254,8 @@ class MainActivity : AppCompatActivity() {
                         contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
                         resolver.update(uri, contentValues, null, null)
                     }
-                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved (${quickMenu.currentLook.label})", Toast.LENGTH_SHORT).show() }
+                    val modeLabel = if (isNightMode) "Night" else activeLook.label
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved ($modeLabel)", Toast.LENGTH_SHORT).show() }
                 } catch (e: Exception) {
                     runOnUiThread { Toast.makeText(this@MainActivity, "Encode error: ${e.message}", Toast.LENGTH_SHORT).show() }
                 }
@@ -250,14 +266,15 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // ===== Matrix driven by the selected look (Simulated AI enhancement) =====
+    // ===== Matrix driven by the selected look + Night mode =====
     private fun applyProPipeline(src: Bitmap, rotation: Int): Bitmap {
         val rotated = if (rotation != 0) {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
             Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { if (it != src) src.recycle() }
         } else src
 
-        val cm = ColorMatrix().apply { set(quickMenu.currentLook.matrix) }
+        val matrix = if (isNightMode) Look.NIGHT.matrix else activeLook.matrix
+        val cm = ColorMatrix().apply { set(matrix) }
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(cm) }
         val result = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
         Canvas(result).drawBitmap(rotated, 0f, 0f, paint)
