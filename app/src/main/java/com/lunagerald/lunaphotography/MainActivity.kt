@@ -54,6 +54,9 @@ class MainActivity : AppCompatActivity() {
     private val flashLabels = arrayOf("⚡ AUTO", "⚡ ON", "⚡ OFF")
     private var flashIndex = 0
 
+    // NEW: quick menu hook
+    private lateinit var quickMenu: QuickMenu
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -65,7 +68,7 @@ class MainActivity : AppCompatActivity() {
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
         val flashPill = findViewById<TextView>(R.id.flashPill)
         val gearPill = findViewById<ImageView>(R.id.gearPill)
-        
+
         val zoomPills = listOf(
             findViewById<TextView>(R.id.zoomHalf),
             findViewById<TextView>(R.id.zoomOne),
@@ -80,6 +83,12 @@ class MainActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.mPano)
         )
 
+        // NEW: build quick menu; gear toggles it
+        quickMenu = QuickMenu(this) { look ->
+            applyLookToCamera(look)
+            Toast.makeText(this, "Style: ${look.name}", Toast.LENGTH_SHORT).show()
+        }
+
         // Shutter & Switch
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
         switchBtn.setOnClickListener { switchCamera() }
@@ -92,11 +101,8 @@ class MainActivity : AppCompatActivity() {
             triggerHaptic()
         }
 
-        // Gear (Styles)
-        gearPill.setOnClickListener { 
-            Toast.makeText(this, "Style: Luna Bright", Toast.LENGTH_SHORT).show()
-            triggerHaptic()
-        }
+        // Gear -> open iPhone-style quick menu
+        gearPill.setOnClickListener { triggerHaptic(); quickMenu.toggle() }
 
         // Zoom Pills
         zoomPills[0].setOnClickListener { setZoom(0.5f, 0, zoomPills) }
@@ -158,18 +164,22 @@ class MainActivity : AppCompatActivity() {
             try {
                 provider.unbindAll()
                 currentCamera = provider.bindToLifecycle(this, selector, preview, imageCapture)
-                
-                // UPGRADE: Force Brighter Exposure for Low Light (The "Handsome" Fix)
-                val exposureState = currentCamera?.cameraInfo?.exposureState
-                if (exposureState != null && exposureState.exposureCompensationRange.upper > 0) {
-                    // Set exposure to 80% of max positive brightness
-                    val brightIndex = (exposureState.exposureCompensationRange.upper * 0.8).toInt()
-                    currentCamera?.cameraControl?.setExposureCompensationIndex(brightIndex.coerceAtLeast(1))
-                }
+                // NEW: exposure now driven by the selected quick-menu look (Night boosts, others auto)
+                applyLookToCamera(quickMenu.currentLook)
             } catch (e: Exception) {
                 Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    // NEW: connect look -> auto-exposure (the only CameraX call we add)
+    private fun applyLookToCamera(look: Look) {
+        val cam = currentCamera ?: return
+        val state = cam.cameraInfo.exposureState
+        if (!state.isExposureCompensationSupported) return
+        val upper = state.exposureCompensationRange.upper
+        val idx = (look.exposureRatio * upper).roundToInt()
+        cam.cameraControl.setExposureCompensationIndex(idx)
     }
 
     private fun startTapToFocus(x: Float, y: Float) {
@@ -192,7 +202,7 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    // 100% UNTOUCHED WORKING CAPTURE & SAVE LOGIC
+    // ===== 100% UNTOUCHED WORKING CAPTURE & SAVE LOGIC =====
     private fun takePhoto() {
         val capture = imageCapture ?: return
         val contentValues = ContentValues().apply {
@@ -219,7 +229,6 @@ class MainActivity : AppCompatActivity() {
                     }
                     image.close()
 
-                    // UPGRADED: Apply the new "Bright & Handsome" Pipeline
                     val outputBitmap = applyProPipeline(sourceBitmap, rot)
                     sourceBitmap.recycle()
 
@@ -233,7 +242,7 @@ class MainActivity : AppCompatActivity() {
                         contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
                         resolver.update(uri, contentValues, null, null)
                     }
-                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved to Gallery (Pro)", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved (${quickMenu.currentLook.name})", Toast.LENGTH_SHORT).show() }
                 } catch (e: Exception) {
                     runOnUiThread { Toast.makeText(this@MainActivity, "Encode error: ${e.message}", Toast.LENGTH_SHORT).show() }
                 }
@@ -244,35 +253,22 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // NEW: "Bright & Handsome" Pipeline (Fixes dark/muddy images)
+    // ===== matrix now driven by the selected look (the "simulated AI" enhancement) =====
     private fun applyProPipeline(src: Bitmap, rotation: Int): Bitmap {
-        // 1. Handle Rotation (Safe)
         val rotated = if (rotation != 0) {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
             Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { if (it != src) src.recycle() }
         } else src
 
-        // 2. "Handsome" Lighting & Color Matrix
-        // Strongly lifts shadows (+25 R, +20 G, +15 B) to fix underexposure.
-        // Warms skin tones significantly (1.20 Red) for a healthy look.
-        // REMOVED VIGNETTE: Dark corners were making low-light photos look muddy.
-        val cm = ColorMatrix().apply {
-            set(floatArrayOf(
-                1.20f, 0.0f,  0.0f,  0.0f,  25.0f, // Red: Strong Warmth + Shadow lift
-                0.0f,  1.15f, 0.0f,  0.0f,  20.0f, // Green: Vibrancy + Shadow lift
-                0.0f,  0.0f,  1.10f, 0.0f,  15.0f, // Blue: Slight lift (kept lower to maintain warmth)
-                0.0f,  0.0f,  0.0f,  1.0f,  0.0f   // Alpha
-            ))
-        }
+        val cm = ColorMatrix().apply { set(quickMenu.currentLook.matrix) }
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(cm) }
         val result = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
         Canvas(result).drawBitmap(rotated, 0f, 0f, paint)
         if (result != rotated) rotated.recycle()
-
         return result
     }
 
-    // 100% UNTOUCHED WORKING YUV CONVERSION
+    // ===== 100% UNTOUCHED WORKING YUV CONVERSION =====
     private fun yuvToBitmap(image: ImageProxy): Bitmap {
         val w = image.width; val h = image.height
         val ySize = w * h
