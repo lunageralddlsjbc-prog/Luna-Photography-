@@ -37,6 +37,8 @@ class QuickMenu(
         fun onDepthToggle(enabled: Boolean)
         fun onNightToggle(enabled: Boolean)
         fun onFormatCycle()
+        fun onIPhoneToggle()
+        fun onAIToggle()
     }
 
     private val root: FrameLayout
@@ -112,6 +114,8 @@ class QuickMenu(
             Triple(R.drawable.ic_depth, "Depth") { onDepthClick() },
             Triple(R.drawable.ic_night, "Night") { onNightClick() },
             Triple(R.drawable.ic_format, "Format") { onFormatClick() }
+        Triple(R.drawable.ic_iphone, "iPhone") { onIPhoneClick() },
+        Triple(R.drawable.ic_ai, "AI Auto") { onAIClick() },
         )
         for ((iconRes, label, action) in items) grid.addView(buildItem(iconRes, label, action))
         sheet.addView(grid)
@@ -192,6 +196,8 @@ class QuickMenu(
         }
     }
 
+    private fun onIPhoneClick() { callbacks.onIPhoneToggle(); updateItemAppearance("iPhone", true, "iPhone") }
+    private fun onAIClick() { callbacks.onAIToggle(); updateItemAppearance("AI Auto", true, "AI Auto") }
     private fun onFlashClick() {
         flashState = (flashState + 1) % 3
         callbacks.onFlashCycle()

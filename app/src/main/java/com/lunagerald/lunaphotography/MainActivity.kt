@@ -346,6 +346,11 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     override fun onDepthToggle(enabled: Boolean) { isDepthEnabled = enabled; startCamera() }
     override fun onNightToggle(enabled: Boolean) { isNightMode = enabled; startCamera() }
     override fun onFormatCycle() { formatIndex = (formatIndex + 1) % 2 }
+    private var isIPhoneOn=false
+    override fun onIPhoneToggle(){isIPhoneOn=isIPhoneOn==false; applyIPhoneFilter()}
+    private var isAIOn=false
+    override fun onAIToggle(){isAIOn=isAIOn==false; applyIPhoneFilter()}
+    private fun applyIPhoneFilter(){val v=findViewById<android.view.View>(R.id.previewView); v.foreground=if(isIPhoneOn||isAIOn) android.graphics.drawable.ColorDrawable(android.graphics.Color.argb(18,255,180,90)) else null}
 
     companion object {
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
