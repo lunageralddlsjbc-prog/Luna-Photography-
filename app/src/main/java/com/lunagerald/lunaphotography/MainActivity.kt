@@ -45,31 +45,25 @@ class MainActivity : AppCompatActivity() {
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
 
-        shutterBtn.setOnClickListener {
-            triggerHaptic()
-            takePhoto()
-        }
+        shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
         switchBtn.setOnClickListener { switchCamera() }
 
-        if (allPermissionsGranted()) {
-            startCamera()
-        } else {
-            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
-        }
+        if (allPermissionsGranted()) startCamera()
+        else ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
     }
 
     private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
+        val future = ProcessCameraProvider.getInstance(this)
+        future.addListener({
+            val provider = future.get()
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
             imageCapture = ImageCapture.Builder().build()
-            val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+            val selector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
             try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                provider.unbindAll()
+                provider.bindToLifecycle(this, selector, preview, imageCapture)
             } catch (e: Exception) {
                 Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
@@ -78,119 +72,113 @@ class MainActivity : AppCompatActivity() {
 
     private fun takePhoto() {
         val capture = imageCapture ?: return
-        try {
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, "LUNA_${System.currentTimeMillis()}.jpg")
-                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "DCIM/Camera")
-                    put(MediaStore.Images.Media.IS_PENDING, 1)
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "LUNA_${System.currentTimeMillis()}.jpg")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "DCIM/Camera")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+        val resolver = applicationContext.contentResolver
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+        if (uri == null) {
+            Toast.makeText(this, "Storage insert failed", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // CORRECTED: ImageCapture.OnImageCapturedCallback() and onCaptureSuccess
+        capture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
+            override fun onCaptureSuccess(image: ImageProxy) {
+                try {
+                    val rot = image.imageInfo.rotationDegrees
+                    val bmp: Bitmap = if (image.format == ImageFormat.JPEG) {
+                        val buf = image.planes[0].buffer
+                        val bytes = ByteArray(buf.remaining())
+                        buf.get(bytes)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    } else {
+                        yuvToBitmap(image)
+                    }
+                    image.close()
+                    
+                    val finalBmp = if (rot != 0) rotate(bmp, rot) else bmp
+                    val bos = ByteArrayOutputStream()
+                    finalBmp.compress(Bitmap.CompressFormat.JPEG, 92, bos)
+                    val finalBytes = bos.toByteArray()
+                    
+                    resolver.openOutputStream(uri)?.use { it.write(finalBytes) }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        contentValues.clear()
+                        contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                        resolver.update(uri, contentValues, null, null)
+                    }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved to Gallery", Toast.LENGTH_SHORT).show() }
+                } catch (e: Exception) {
+                    try { image.close() } catch (_: Exception) {}
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Encode error: ${e.message}", Toast.LENGTH_SHORT).show() }
                 }
             }
-            val contentResolver = applicationContext.contentResolver
-            val imageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                ?: return
-
-            // Manual capture: bypass CameraX's native JPEG processor (fails on this HAL)
-            capture.takePicture(cameraExecutor, object : ImageCapture.OnCapturedCallback {
-                override fun onCapture(image: ImageProxy) {
-                    try {
-                        val rotation = image.imageInfo.rotationDegrees
-                        val bitmap = when (image.format) {
-                            ImageFormat.JPEG -> BitmapFactory.decodeByteArray(
-                                image.planes[0].buffer.array(), 0, image.planes[0].buffer.limit()
-                            )
-                            else -> yuvToBitmap(image)
-                        }
-                        image.close()
-                        val rotated = if (rotation != 0) rotateBitmap(bitmap, rotation) else bitmap
-
-                        contentResolver.openOutputStream(imageUri)?.use { out ->
-                            rotated.compress(Bitmap.CompressFormat.JPEG, 92, out)
-                        }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            contentValues.clear()
-                            contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-                            contentResolver.update(imageUri, contentValues, null, null)
-                        }
-                        runOnUiThread { Toast.makeText(this@MainActivity, "Saved to Gallery", Toast.LENGTH_SHORT).show() }
-                    } catch (e: Exception) {
-                        image.close()
-                        runOnUiThread { Toast.makeText(this@MainActivity, "Encode error: ${e.message}", Toast.LENGTH_SHORT).show() }
-                    }
-                }
-                override fun onError(exception: ImageCaptureException) {
-                    runOnUiThread { Toast.makeText(this@MainActivity, "Capture error: ${exception.message}", Toast.LENGTH_SHORT).show() }
-                }
-            })
-        } catch (e: Exception) {
-            runOnUiThread { Toast.makeText(this, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show() }
-        }
+            override fun onError(exception: ImageCaptureException) {
+                runOnUiThread { Toast.makeText(this@MainActivity, "Capture error: ${exception.message}", Toast.LENGTH_SHORT).show() }
+            }
+        })
     }
 
     private fun yuvToBitmap(image: ImageProxy): Bitmap {
-        val nv21 = yuvToNv21(image)
-        val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
-        val baos = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 92, baos)
-        val bytes = baos.toByteArray()
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    }
-
-    private fun yuvToNv21(image: ImageProxy): ByteArray {
-        val width = image.width
-        val height = image.height
-        val ySize = width * height
+        val w = image.width
+        val h = image.height
+        val ySize = w * h
         val nv21 = ByteArray(ySize + ySize / 2)
-        val yBuffer = image.planes[0].buffer
-        val uBuffer = image.planes[1].buffer
-        val vBuffer = image.planes[2].buffer
-        val yRowStride = image.planes[0].rowStride
-        val uvRowStride = image.planes[1].rowStride
-        val uvPixelStride = image.planes[1].pixelStride
-
+        val yBuf = image.planes[0].buffer
+        val uBuf = image.planes[1].buffer
+        val vBuf = image.planes[2].buffer
+        val yRow = image.planes[0].rowStride
+        val uRow = if (image.planes[1].rowStride == 0) w else image.planes[1].rowStride
+        val uPix = image.planes[1].pixelStride
+        val vRow = if (image.planes[2].rowStride == 0) w else image.planes[2].rowStride
+        val vPix = image.planes[2].pixelStride
+        
         var pos = 0
-        for (row in 0 until height) {
-            yBuffer.position(row * yRowStride)
-            yBuffer.get(nv21, pos, width)
-            pos += width
+        for (row in 0 until h) {
+            yBuf.position(row * yRow)
+            yBuf.get(nv21, pos, w)
+            pos += w
         }
-        val uvHeight = height / 2
+        val uvH = h / 2
         pos = ySize
-        for (row in 0 until uvHeight) {
-            for (col in 0 until width / 2) {
-                val v = vBuffer.get(row * uvRowStride + col * uvPixelStride)
-                val u = uBuffer.get(row * uvRowStride + col * uvPixelStride)
-                nv21[pos++] = v
-                nv21[pos++] = u
+        for (row in 0 until uvH) {
+            for (col in 0 until w / 2) {
+                nv21[pos++] = vBuf.get(row * vRow + col * vPix)
+                nv21[pos++] = uBuf.get(row * uRow + col * uPix)
             }
         }
-        return nv21
+        val yuv = YuvImage(nv21, ImageFormat.NV21, w, h, null)
+        val bos = ByteArrayOutputStream()
+        yuv.compressToJpeg(Rect(0, 0, w, h), 92, bos)
+        val data = bos.toByteArray()
+        return BitmapFactory.decodeByteArray(data, 0, data.size)
     }
 
-    private fun rotateBitmap(source: Bitmap, degrees: Int): Bitmap {
-        val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
-        val result = Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
-        if (result != source) source.recycle()
-        return result
+    private fun rotate(src: Bitmap, deg: Int): Bitmap {
+        val m = Matrix().apply { postRotate(deg.toFloat()) }
+        val out = Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
+        if (out != src) src.recycle()
+        return out
     }
 
     private fun switchCamera() {
-        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
-            CameraSelector.LENS_FACING_FRONT
-        } else {
-            CameraSelector.LENS_FACING_BACK
-        }
+        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK)
+            CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
         startCamera()
     }
 
     private fun triggerHaptic() {
         try {
-            val vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator
-            if (vibrator != null && vibrator.hasVibrator()) {
-                vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
-            }
-        } catch (e: Exception) { /* ignore */ }
+            val v = getSystemService(VIBRATOR_SERVICE) as? Vibrator
+            if (v != null && v.hasVibrator())
+                v.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+        } catch (_: Exception) {}
     }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
@@ -199,9 +187,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-            startCamera()
-        }
+        if (requestCode == REQUEST_CODE && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) startCamera()
     }
 
     companion object {
