@@ -78,6 +78,11 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     private var formatIndex = 0
     private var styleIndex = 0
 
+    private val previewResolutions = arrayOf(
+        Size(960, 720), // 4:3 preview low-res smooth
+        Size(1280, 720), // 16:9 preview
+        Size(720, 720) // 1:1 preview
+    )
     private val aspectResolutions = arrayOf(
         Size(1280, 960),  // 4:3
         Size(1280, 720),  // 16:9
@@ -90,6 +95,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         cameraExecutor = Executors.newSingleThreadExecutor()
         previewView = findViewById(R.id.previewView)
         previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
+        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
         focusRing = findViewById(R.id.focusRing)
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
