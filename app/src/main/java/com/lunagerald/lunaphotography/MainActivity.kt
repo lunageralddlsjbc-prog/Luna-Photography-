@@ -83,6 +83,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         Size(1280, 720), // 16:9 preview
         Size(720, 720) // 1:1 preview
     )
+    private val previewResolutions = arrayOf(
+        Size(960, 720), Size(1280, 720), Size(720, 720))
     private val aspectResolutions = arrayOf(
         Size(1280, 960),  // 4:3
         Size(1280, 720),  // 16:9
@@ -95,6 +97,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         cameraExecutor = Executors.newSingleThreadExecutor()
         previewView = findViewById(R.id.previewView)
         previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
+        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
         previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
         focusRing = findViewById(R.id.focusRing)
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
@@ -358,7 +361,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     override fun onIPhoneToggle(){isIPhoneOn=isIPhoneOn==false; applyIPhoneFilter()}
     private var isAIOn=false
     override fun onAIToggle(){isAIOn=isAIOn==false; applyIPhoneFilter()}
-    private fun applyIPhoneFilter(){val v=findViewById<android.view.View>(R.id.previewView); v.foreground=if(isIPhoneOn||isAIOn) android.graphics.drawable.ColorDrawable(android.graphics.Color.argb(18,255,180,90)) else null}
+    private fun applyIPhoneFilter(){val v=findViewById<android.view.View>(R.id.previewView); v.foreground=if(isIPhoneOn||isAIOn) android.graphics.drawable.ColorDrawable(android.graphics.Color.argb(7,255,180,90)) else null}
 
     companion object {
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
