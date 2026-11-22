@@ -56,7 +56,7 @@ class QuickMenu(
     private val flashLabels = arrayOf("Auto", "On", "Off")
     private val aspectLabels = arrayOf("4:3", "16:9", "1:1")
     private val timerLabels = arrayOf("Off", "3s", "10s")
-    private val formatLabels = arrayOf("JPEG", "HEIC")
+    private val formatLabels = arrayOf("JPEG", "WEBP")
     private val styleLabels = arrayOf("Normal", "Luna", "Cinematic")
 
     init {
@@ -169,16 +169,12 @@ class QuickMenu(
                 val iconView = item.findViewWithTag<View>("icon_$label")
                 val labelView = item.findViewWithTag<TextView>("label_$label")
                 if (active) {
-                    iconView?.background = GradientDrawable().apply {
                         setColor(0xFFFFFFFF.toInt()); shape = GradientDrawable.OVAL
                     }
-                    iconView?.background?.setTint(0xFF000000.toInt())
                     labelView?.setTextColor(0xFFFFFFFF.toInt())
                 } else {
-                    iconView?.background = GradientDrawable().apply {
                         setColor(0xFF2C2C2E.toInt()); shape = GradientDrawable.OVAL
                     }
-                    iconView?.background?.setTint(0xFFFFFFFF.toInt())
                     labelView?.setTextColor(0xFFFFFFFF.toInt())
                 }
                 if (displayText != null) labelView?.text = "$label $displayText"

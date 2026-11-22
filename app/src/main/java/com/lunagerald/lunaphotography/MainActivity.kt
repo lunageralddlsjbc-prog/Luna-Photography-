@@ -340,8 +340,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     override fun onExposureChange(value: Float) { exposureValue = value; applyExposure() }
     override fun onStyleCycle() {
         val styles = arrayOf(Look.NORMAL, Look.LUNA, Look.CINEMATIC)
-        activeLook = styles[styleIndex % 3]
         styleIndex = (styleIndex + 1) % 3
+        activeLook = styles[styleIndex % 3]
     }
     override fun onDepthToggle(enabled: Boolean) { isDepthEnabled = enabled; startCamera() }
     override fun onNightToggle(enabled: Boolean) { isNightMode = enabled; startCamera() }
