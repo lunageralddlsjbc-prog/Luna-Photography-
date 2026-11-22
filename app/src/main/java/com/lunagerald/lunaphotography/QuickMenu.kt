@@ -15,41 +15,43 @@ import android.widget.TextView
 import kotlin.math.roundToInt
 
 enum class Look(val label: String, val matrix: FloatArray, val exposureRatio: Float) {
-    // 🌟 THE LUNA LOOK: Warm highlights, neutral shadows, punchy natural greens/blues, natural skin tones.
+    // 🌟 LUNA LOOK: Ultra-subtle. Preserves ISP tone mapping, prevents grey skies, keeps skin natural.
     NORMAL("Luna", floatArrayOf(
-        1.06f, 0.00f, 0.00f, 0.00f,  6.0f,  // Red: Warm highlights, natural skin tone lift
-        0.00f, 1.05f, 0.00f, 0.00f,  3.0f,  // Green: Punchy, natural greens
-        0.00f, 0.00f, 1.04f, 0.00f,  2.0f,  // Blue: Natural blues, prevents muddy shadows
-        0.00f, 0.00f, 0.00f, 1.00f,  0.0f   // Alpha: Unchanged
+        1.04f, 0.00f, 0.00f, 0.00f,  3.0f,  // Warm highlights, natural skin
+        0.00f, 1.03f, 0.00f, 0.00f,  1.0f,  // Natural greens
+        0.00f, 0.00f, 1.02f, 0.00f,  0.0f,  // Natural blues, zero grey lift
+        0.00f, 0.00f, 0.00f, 1.00f,  0.0f
     ), 0f),
     
     VIBRANT("Vibrant", floatArrayOf(
-        1.10f, 0.00f, 0.00f, 0.00f,  8.0f,
-        0.00f, 1.08f, 0.00f, 0.00f,  4.0f,
-        0.00f, 0.00f, 1.06f, 0.00f,  2.0f,
+        1.08f, 0.00f, 0.00f, 0.00f,  5.0f,
+        0.00f, 1.06f, 0.00f, 0.00f,  3.0f,
+        0.00f, 0.00f, 1.05f, 0.00f,  1.0f,
         0.00f, 0.00f, 0.00f, 1.00f,  0.0f
     ), 0f),
     
     WARM("Warm", floatArrayOf(
-        1.12f, 0.00f, 0.00f, 0.00f, 12.0f,
-        0.00f, 1.05f, 0.00f, 0.00f,  6.0f,
-        0.00f, 0.00f, 0.95f, 0.00f,  0.0f,
+        1.10f, 0.00f, 0.00f, 0.00f,  8.0f,
+        0.00f, 1.04f, 0.00f, 0.00f,  4.0f,
+        0.00f, 0.00f, 0.96f, 0.00f,  0.0f,
         0.00f, 0.00f, 0.00f, 1.00f,  0.0f
     ), 0f),
     
     COOL("Cool", floatArrayOf(
-        0.95f, 0.00f, 0.00f, 0.00f,  0.0f,
-        0.00f, 1.02f, 0.00f, 0.00f,  3.0f,
-        0.00f, 0.00f, 1.12f, 0.00f,  8.0f,
+        0.96f, 0.00f, 0.00f, 0.00f,  0.0f,
+        0.00f, 1.02f, 0.00f, 0.00f,  2.0f,
+        0.00f, 0.00f, 1.10f, 0.00f,  5.0f,
         0.00f, 0.00f, 0.00f, 1.00f,  0.0f
     ), 0f),
     
+    // 🌙 NIGHT LOOK: Specifically tuned to keep skies pure black (NO offset lift) 
+    // while warming the subject's face. Exposure ratio is 0f to let the Night Extension ISP handle it.
     NIGHT("Night", floatArrayOf(
-        1.08f, 0.00f, 0.00f, 0.00f, 18.0f, // Strong shadow lift for low light
-        0.00f, 1.06f, 0.00f, 0.00f, 12.0f,
-        0.00f, 0.00f, 1.04f, 0.00f,  8.0f,
+        1.06f, 0.00f, 0.00f, 0.00f,  6.0f,  // Warm face
+        0.00f, 1.04f, 0.00f, 0.00f,  2.0f,  // Natural greens
+        0.00f, 0.00f, 1.03f, 0.00f,  0.0f,  // ZERO shadow lift = pure black sky
         0.00f, 0.00f, 0.00f, 1.00f,  0.0f
-    ), 0.8f)
+    ), 0.0f)
 }
 
 class QuickMenu(
@@ -62,20 +64,17 @@ class QuickMenu(
     private val sheet: LinearLayout
     private var shown = false
     private var startY = 0f
-
     private var currentStyle = Look.NORMAL
     private var isNightMode = false
 
     init {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
-
         root = FrameLayout(activity).apply {
             setBackgroundColor(0x99000000.toInt())
             visibility = View.GONE
             alpha = 0f
             setOnClickListener { hide() }
         }
-
         sheet = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
@@ -83,44 +82,20 @@ class QuickMenu(
                 cornerRadii = floatArrayOf(dp(20f), dp(20f), dp(20f), dp(20f), 0f, 0f, 0f, 0f)
             }
             setPadding(dp(16), dp(12), dp(16), dp(24))
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM
-            )
+            layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
             setOnClickListener { }
         }
-
-        val handle = View(activity).apply {
-            background = GradientDrawable().apply {
-                setColor(0xFF3A3A3C.toInt())
-                cornerRadius = dp(2f).toFloat()
-            }
-            layoutParams = LinearLayout.LayoutParams(dp(36), dp(4)).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                setMargins(0, 0, 0, dp(12))
-            }
-        }
-        sheet.addView(handle)
-
-        val title = TextView(activity).apply {
-            text = "Camera Controls"
-            setTextColor(Color.WHITE)
-            textSize = 17f
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(16))
-        }
-        sheet.addView(title)
-
+        sheet.addView(View(activity).apply {
+            background = GradientDrawable().apply { setColor(0xFF3A3A3C.toInt()); cornerRadius = dp(2f).toFloat() }
+            layoutParams = LinearLayout.LayoutParams(dp(36), dp(4)).apply { gravity = Gravity.CENTER_HORIZONTAL; setMargins(0, 0, 0, dp(12)) }
+        })
+        sheet.addView(TextView(activity).apply {
+            text = "Camera Controls"; setTextColor(Color.WHITE); textSize = 17f; gravity = Gravity.CENTER; setPadding(0, 0, 0, dp(16))
+        })
         val grid = GridLayout(activity).apply {
-            columnCount = 3
-            rowCount = 3
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
+            columnCount = 3; rowCount = 3
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
-
         val items = listOf(
             Triple("⚡", "Flash") { onFlashCycle() },
             Triple("●", "Live") { toast("Live Photo coming soon") },
@@ -132,120 +107,64 @@ class QuickMenu(
             Triple("🌙", "Night") { toggleNight() },
             Triple("📄", "Format") { toast("Format settings coming soon") }
         )
-
-        for ((icon, label, action) in items) {
-            grid.addView(buildItem(icon, label, action))
-        }
-
-        sheet.addView(grid)
-        root.addView(sheet)
-        content.addView(root)
-
+        for ((icon, label, action) in items) grid.addView(buildItem(icon, label, action))
+        sheet.addView(grid); root.addView(sheet); content.addView(root)
         sheet.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> startY = event.rawY
                 MotionEvent.ACTION_MOVE -> {
                     val dy = event.rawY - startY
-                    if (dy > 0) {
-                        sheet.translationY = dy
-                        if (dy > dp(100).toFloat()) hide()
-                    }
+                    if (dy > 0) { sheet.translationY = dy; if (dy > dp(100).toFloat()) hide() }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (sheet.translationY < dp(100).toFloat()) {
-                        sheet.animate().translationY(0f).setDuration(200).start()
-                    }
+                    if (sheet.translationY < dp(100).toFloat()) sheet.animate().translationY(0f).setDuration(200).start()
                 }
-            }
-            true
+            }; true
         }
     }
 
     private fun buildItem(icon: String, label: String, action: () -> Unit): View {
         val item = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            layoutParams = GridLayout.LayoutParams().apply {
-                width = 0
-                height = ViewGroup.LayoutParams.WRAP_CONTENT
-                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-            }
-            isClickable = true
-            setOnClickListener { action() }
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(8), dp(8), dp(8), dp(8))
+            layoutParams = GridLayout.LayoutParams().apply { width = 0; height = ViewGroup.LayoutParams.WRAP_CONTENT; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f) }
+            isClickable = true; setOnClickListener { action() }
         }
-
-        val iconView = TextView(activity).apply {
-            text = icon
-            textSize = 20f
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply {
-                setColor(0xFF2C2C2E.toInt())
-                shape = GradientDrawable.OVAL
-            }
-            layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-            }
-        }
-        item.addView(iconView)
-
-        val labelView = TextView(activity).apply {
-            text = label
-            setTextColor(Color.WHITE)
-            textSize = 11f
-            gravity = Gravity.CENTER
-            setPadding(0, dp(6), 0, 0)
-        }
-        item.addView(labelView)
-
+        item.addView(TextView(activity).apply {
+            text = icon; textSize = 20f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+            background = GradientDrawable().apply { setColor(0xFF2C2C2E.toInt()); shape = GradientDrawable.OVAL }
+            layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+        })
+        item.addView(TextView(activity).apply {
+            text = label; setTextColor(Color.WHITE); textSize = 11f; gravity = Gravity.CENTER; setPadding(0, dp(6), 0, 0)
+        })
         return item
     }
 
     private fun cycleStyle() {
         val styles = listOf(Look.NORMAL, Look.VIBRANT, Look.WARM, Look.COOL)
-        val idx = styles.indexOf(currentStyle)
-        currentStyle = styles[(idx + 1) % styles.size]
+        currentStyle = styles[(styles.indexOf(currentStyle) + 1) % styles.size]
         if (isNightMode) toggleNight()
-        onStyleChange(currentStyle)
-        toast("Style: ${currentStyle.label}")
+        onStyleChange(currentStyle); toast("Style: ${currentStyle.label}")
     }
 
     private fun toggleNight() {
         isNightMode = !isNightMode
-        if (isNightMode) {
-            onNightToggle(true)
-            toast("Night Mode: ON")
-        } else {
-            onNightToggle(false)
-            onStyleChange(currentStyle)
-            toast("Night Mode: OFF")
-        }
+        if (isNightMode) { onNightToggle(true); toast("Night Mode: ON") }
+        else { onNightToggle(false); onStyleChange(currentStyle); toast("Night Mode: OFF") }
     }
 
-    private fun toast(msg: String) {
-        android.widget.Toast.makeText(activity, msg, android.widget.Toast.LENGTH_SHORT).show()
-    }
+    private fun toast(msg: String) = android.widget.Toast.makeText(activity, msg, android.widget.Toast.LENGTH_SHORT).show()
 
     fun toggle() = if (shown) hide() else show()
-
     fun show() {
-        shown = true
-        root.visibility = View.VISIBLE
-        sheet.translationY = dp(300).toFloat()
-        root.animate().alpha(1f).setDuration(200).start()
-        sheet.animate().translationY(0f).setDuration(300).start()
+        shown = true; root.visibility = View.VISIBLE; sheet.translationY = dp(300).toFloat()
+        root.animate().alpha(1f).setDuration(200).start(); sheet.animate().translationY(0f).setDuration(300).start()
     }
-
     fun hide() {
         shown = false
         root.animate().alpha(0f).setDuration(150).withEndAction { root.visibility = View.GONE }.start()
         sheet.animate().translationY(dp(300).toFloat()).setDuration(200).start()
     }
-
-    private fun dp(v: Int): Int =
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), activity.resources.displayMetrics).roundToInt()
-
-    private fun dp(v: Float): Float =
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, activity.resources.displayMetrics)
+    private fun dp(v: Int): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), activity.resources.displayMetrics).roundToInt()
+    private fun dp(v: Float): Float = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, activity.resources.displayMetrics)
 }

@@ -39,6 +39,8 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.extensions.ExtensionMode
+import androidx.camera.extensions.ImageCaptureExtender
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -79,49 +81,27 @@ class MainActivity : AppCompatActivity() {
         val flashPill = findViewById<TextView>(R.id.flashPill)
         val gearPill = findViewById<ImageView>(R.id.gearPill)
 
-        val zoomPills = listOf(
-            findViewById<TextView>(R.id.zoomHalf),
-            findViewById<TextView>(R.id.zoomOne),
-            findViewById<TextView>(R.id.zoomThree)
-        )
-        val modePills = listOf(
-            findViewById<TextView>(R.id.mTime),
-            findViewById<TextView>(R.id.mSlo),
-            findViewById<TextView>(R.id.mVideo),
-            findViewById<TextView>(R.id.mPhoto),
-            findViewById<TextView>(R.id.mPortrait),
-            findViewById<TextView>(R.id.mPano)
-        )
+        val zoomPills = listOf(findViewById<TextView>(R.id.zoomHalf), findViewById<TextView>(R.id.zoomOne), findViewById<TextView>(R.id.zoomThree))
+        val modePills = listOf(findViewById<TextView>(R.id.mTime), findViewById<TextView>(R.id.mSlo), findViewById<TextView>(R.id.mVideo), findViewById<TextView>(R.id.mPhoto), findViewById<TextView>(R.id.mPortrait), findViewById<TextView>(R.id.mPano))
 
-        quickMenu = QuickMenu(
-            this,
+        quickMenu = QuickMenu(this,
             onFlashCycle = {
                 flashIndex = (flashIndex + 1) % flashModes.size
                 imageCapture?.flashMode = flashModes[flashIndex]
                 flashPill.text = flashLabels[flashIndex]
             },
-            onStyleChange = { look ->
-                activeLook = look
-                applyLookToCamera(look, isNightMode)
-            },
-            onNightToggle = { nightOn ->
-                isNightMode = nightOn
-                applyLookToCamera(activeLook, isNightMode)
-            }
+            onStyleChange = { look -> activeLook = look; applyLookToCamera(look, isNightMode) },
+            onNightToggle = { nightOn -> isNightMode = nightOn; applyLookToCamera(activeLook, isNightMode) }
         )
 
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
-        
-        // FIXED: Use smooth 3D flip animation instead of instant switch
         switchBtn.setOnClickListener { switchCameraWithAnimation() }
-
         flashPill.setOnClickListener {
             flashIndex = (flashIndex + 1) % flashModes.size
             imageCapture?.flashMode = flashModes[flashIndex]
             flashPill.text = flashLabels[flashIndex]
             triggerHaptic()
         }
-
         gearPill.setOnClickListener { triggerHaptic(); quickMenu.toggle() }
 
         zoomPills[0].setOnClickListener { setZoom(0.5f, 0, zoomPills) }
@@ -133,20 +113,15 @@ class MainActivity : AppCompatActivity() {
             tv.setOnClickListener {
                 modePills.forEach { it.setTextColor(0x99FFFFFF.toInt()) }
                 tv.setTextColor(0xFFFFD60A.toInt())
-                if (modeNames[i] != "PHOTO") {
-                    Toast.makeText(this, "${modeNames[i]} mode (Photo pipeline active)", Toast.LENGTH_SHORT).show()
-                }
+                if (modeNames[i] != "PHOTO") Toast.makeText(this, "${modeNames[i]} mode (Photo pipeline active)", Toast.LENGTH_SHORT).show()
                 triggerHaptic()
             }
         }
 
         previewView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
-                triggerHaptic()
-                showFocusRing(event.x, event.y)
-                startTapToFocus(event.x, event.y)
-            }
-            true
+                triggerHaptic(); showFocusRing(event.x, event.y); startTapToFocus(event.x, event.y)
+            }; true
         }
 
         if (allPermissionsGranted()) startCamera()
@@ -156,13 +131,8 @@ class MainActivity : AppCompatActivity() {
     private fun setZoom(ratio: Float, activeIndex: Int, zoomPills: List<TextView>) {
         currentCamera?.cameraControl?.setZoomRatio(ratio)
         zoomPills.forEachIndexed { i, tv ->
-            if (i == activeIndex) {
-                tv.setBackgroundResource(R.drawable.pill_active)
-                tv.setTextColor(0xFF000000.toInt())
-            } else {
-                tv.setBackgroundResource(R.drawable.pill_inactive)
-                tv.setTextColor(0xFFFFFFFF.toInt())
-            }
+            if (i == activeIndex) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) }
+            else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) }
         }
     }
 
@@ -170,16 +140,28 @@ class MainActivity : AppCompatActivity() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             val provider = future.get()
-            val preview = Preview.Builder()
-                .setTargetResolution(Size(1280, 720))
-                .build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
-            imageCapture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                .build()
-            imageCapture?.flashMode = flashModes[flashIndex]
+            val preview = Preview.Builder().setTargetResolution(Size(1280, 720)).build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
             val selector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+            
+            // REQUESTED: Keep full resolution, let device ISP do tone mapping
+            val captureBuilder = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            
+            // REQUESTED: Use Multi-Frame Night Mode / HDR Extension to reduce noise and keep detail
+            val extender = ImageCaptureExtender.create(captureBuilder, selector)
+            if (extender.isExtensionAvailable) {
+                extender.enableExtension(ExtensionMode.NIGHT)
+            } else {
+                val hdrExtender = ImageCaptureExtender.create(captureBuilder, selector)
+                if (hdrExtender.isExtensionAvailable) {
+                    hdrExtender.enableExtension(ExtensionMode.HDR)
+                }
+            }
+            
+            imageCapture = captureBuilder.build()
+            imageCapture?.flashMode = flashModes[flashIndex]
+            
             try {
                 provider.unbindAll()
                 currentCamera = provider.bindToLifecycle(this, selector, preview, imageCapture)
@@ -190,35 +172,15 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    // NEW: Smooth 3D flip animation that hides the unbind/rebind process
     private fun switchCameraWithAnimation() {
         triggerHaptic()
-        
-        // Spin the button
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
-        ObjectAnimator.ofFloat(switchBtn, "rotation", 0f, 180f).apply {
-            duration = 300
-            interpolator = AccelerateDecelerateInterpolator()
-        }.start()
-
-        // Flip the preview out of view
-        val flipOut = ObjectAnimator.ofFloat(previewView, "rotationY", 0f, 90f).apply {
-            duration = 150
-            interpolator = AccelerateInterpolator()
-        }
-        
-        // Flip the new preview back into view
-        val flipIn = ObjectAnimator.ofFloat(previewView, "rotationY", -90f, 0f).apply {
-            duration = 150
-            interpolator = DecelerateInterpolator()
-        }
-        
+        ObjectAnimator.ofFloat(switchBtn, "rotation", 0f, 180f).apply { duration = 300; interpolator = AccelerateDecelerateInterpolator() }.start()
+        val flipOut = ObjectAnimator.ofFloat(previewView, "rotationY", 0f, 90f).apply { duration = 150; interpolator = AccelerateInterpolator() }
+        val flipIn = ObjectAnimator.ofFloat(previewView, "rotationY", -90f, 0f).apply { duration = 150; interpolator = DecelerateInterpolator() }
         flipOut.addListener(object : AnimatorListenerAdapter() {
             override fun onAnimationEnd(animation: Animator) {
-                // Swap camera at the exact 90-degree mark when the view is edge-on (invisible)
-                // This perfectly masks any black screen from unbinding/rebinding
-                lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) 
-                    CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
+                lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
                 startCamera()
                 flipIn.start()
             }
@@ -231,7 +193,8 @@ class MainActivity : AppCompatActivity() {
         val state = cam.cameraInfo.exposureState
         if (!state.isExposureCompensationSupported) return
         val upper = state.exposureCompensationRange.upper
-        val ratio = if (nightMode) Look.NIGHT.exposureRatio else look.exposureRatio
+        // If Night Extension is active, the ISP handles exposure perfectly. We only apply a very conservative 30% boost max to prevent blown-out lights and grey skies.
+        val ratio = if (nightMode) 0.3f else look.exposureRatio
         val idx = (ratio * upper).roundToInt()
         cam.cameraControl.setExposureCompensationIndex(idx)
     }
@@ -239,9 +202,7 @@ class MainActivity : AppCompatActivity() {
     private fun startTapToFocus(x: Float, y: Float) {
         val cam = currentCamera ?: return
         val point = previewView.meteringPointFactory.createPoint(x, y)
-        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
-            .setAutoCancelDuration(3, TimeUnit.SECONDS)
-            .build()
+        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
         cam.cameraControl.startFocusAndMetering(action)
     }
 
@@ -250,9 +211,7 @@ class MainActivity : AppCompatActivity() {
         focusRing.translationX = x - (focusRing.width / 2f)
         focusRing.translationY = y - (focusRing.height / 2f)
         focusRing.animate().scaleX(1.2f).scaleY(1.2f).alpha(1f).setDuration(200).withEndAction {
-            focusRing.animate().scaleX(1f).scaleY(1f).alpha(0f).setDuration(400).withEndAction {
-                focusRing.visibility = View.GONE
-            }.start()
+            focusRing.animate().scaleX(1f).scaleY(1f).alpha(0f).setDuration(400).withEndAction { focusRing.visibility = View.GONE }.start()
         }.start()
     }
 
@@ -281,18 +240,14 @@ class MainActivity : AppCompatActivity() {
                         yuvToBitmap(image)
                     }
                     image.close()
-
                     val outputBitmap = applyProPipeline(sourceBitmap, rot)
                     sourceBitmap.recycle()
-
                     val bos = ByteArrayOutputStream()
                     outputBitmap.compress(Bitmap.CompressFormat.JPEG, 95, bos)
                     outputBitmap.recycle()
-
                     resolver.openOutputStream(uri)?.use { it.write(bos.toByteArray()) }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        contentValues.clear()
-                        contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                        contentValues.clear(); contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
                         resolver.update(uri, contentValues, null, null)
                     }
                     val modeLabel = if (isNightMode) "Night" else activeLook.label
@@ -312,7 +267,6 @@ class MainActivity : AppCompatActivity() {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
             Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { if (it != src) src.recycle() }
         } else src
-
         val matrix = if (isNightMode) Look.NIGHT.matrix else activeLook.matrix
         val cm = ColorMatrix().apply { set(matrix) }
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(cm) }
@@ -323,8 +277,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun yuvToBitmap(image: ImageProxy): Bitmap {
-        val w = image.width; val h = image.height
-        val ySize = w * h
+        val w = image.width; val h = image.height; val ySize = w * h
         val nv21 = ByteArray(ySize + ySize / 2)
         val yBuf = image.planes[0].buffer; val uBuf = image.planes[1].buffer; val vBuf = image.planes[2].buffer
         val yRow = image.planes[0].rowStride
