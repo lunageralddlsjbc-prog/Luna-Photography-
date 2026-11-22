@@ -136,37 +136,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // FIXED: Properly nested listeners, passing resolved cameraProvider to ExtensionsManager
+    // EXACT VERSION PROVIDED BY USER
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
-            
-            // ExtensionsManager expects the resolved CameraProvider, NOT the future
-            val extensionsFuture = ExtensionsManager.getInstanceAsync(this, cameraProvider)
-            
+            val extensionsFuture = ExtensionsManager.getInstanceAsync(this)
             extensionsFuture.addListener({
                 val extensionsManager = extensionsFuture.get()
                 val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
-                
                 val preview = Preview.Builder()
                     .setTargetResolution(Size(1280, 720))
                     .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-                
                 val captureBuilder = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-                
                 val extensionMode = if (isNightMode) ExtensionMode.NIGHT else ExtensionMode.HDR
                 val finalSelector = if (extensionsManager.isExtensionAvailable(baseSelector, extensionMode)) {
                     extensionsManager.getExtensionEnabledCameraSelector(baseSelector, extensionMode)
                 } else {
                     baseSelector
                 }
-                
                 imageCapture = captureBuilder.build()
                 imageCapture?.flashMode = flashModes[flashIndex]
-                
                 try {
                     cameraProvider.unbindAll()
                     currentCamera = cameraProvider.bindToLifecycle(this, finalSelector, preview, imageCapture)
