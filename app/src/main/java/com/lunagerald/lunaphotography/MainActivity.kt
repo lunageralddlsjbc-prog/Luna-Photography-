@@ -11,11 +11,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
-import android.graphics.RadialGradient
 import android.graphics.Rect
-import android.graphics.Shader
 import android.graphics.YuvImage
 import android.os.Build
 import android.os.Bundle
@@ -98,7 +94,7 @@ class MainActivity : AppCompatActivity() {
 
         // Gear (Styles)
         gearPill.setOnClickListener { 
-            Toast.makeText(this, "Style: Luna Pro", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Style: Luna Bright", Toast.LENGTH_SHORT).show()
             triggerHaptic()
         }
 
@@ -162,6 +158,14 @@ class MainActivity : AppCompatActivity() {
             try {
                 provider.unbindAll()
                 currentCamera = provider.bindToLifecycle(this, selector, preview, imageCapture)
+                
+                // UPGRADE: Force Brighter Exposure for Low Light (The "Handsome" Fix)
+                val exposureState = currentCamera?.cameraInfo?.exposureState
+                if (exposureState != null && exposureState.exposureCompensationRange.upper > 0) {
+                    // Set exposure to 80% of max positive brightness
+                    val brightIndex = (exposureState.exposureCompensationRange.upper * 0.8).toInt()
+                    currentCamera?.cameraControl?.setExposureCompensationIndex(brightIndex.coerceAtLeast(1))
+                }
             } catch (e: Exception) {
                 Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
@@ -215,7 +219,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     image.close()
 
-                    // UPGRADED: Apply the new "Pro Pipeline" for the handsome look
+                    // UPGRADED: Apply the new "Bright & Handsome" Pipeline
                     val outputBitmap = applyProPipeline(sourceBitmap, rot)
                     sourceBitmap.recycle()
 
@@ -240,7 +244,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // NEW: The "Handsome" Pro Pipeline (Fixes dark/cold/flat images)
+    // NEW: "Bright & Handsome" Pipeline (Fixes dark/muddy images)
     private fun applyProPipeline(src: Bitmap, rotation: Int): Bitmap {
         // 1. Handle Rotation (Safe)
         val rotated = if (rotation != 0) {
@@ -249,38 +253,23 @@ class MainActivity : AppCompatActivity() {
         } else src
 
         // 2. "Handsome" Lighting & Color Matrix
-        // Lifts shadows (+15 R, +10 G, +5 B) to fix underexposure.
-        // Warms skin tones (1.10 Red) and boosts contrast (1.05 Green).
+        // Strongly lifts shadows (+25 R, +20 G, +15 B) to fix underexposure.
+        // Warms skin tones significantly (1.20 Red) for a healthy look.
+        // REMOVED VIGNETTE: Dark corners were making low-light photos look muddy.
         val cm = ColorMatrix().apply {
             set(floatArrayOf(
-                1.10f, 0.0f,  0.0f,  0.0f,  15.0f, // Red: Warmth + Shadow lift
-                0.0f,  1.05f, 0.0f,  0.0f,  10.0f, // Green: Vibrancy + Shadow lift
-                0.0f,  0.0f,  0.90f, 0.0f,  5.0f,  // Blue: Reduce cold cast + Shadow lift
+                1.20f, 0.0f,  0.0f,  0.0f,  25.0f, // Red: Strong Warmth + Shadow lift
+                0.0f,  1.15f, 0.0f,  0.0f,  20.0f, // Green: Vibrancy + Shadow lift
+                0.0f,  0.0f,  1.10f, 0.0f,  15.0f, // Blue: Slight lift (kept lower to maintain warmth)
                 0.0f,  0.0f,  0.0f,  1.0f,  0.0f   // Alpha
             ))
         }
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(cm) }
-        val colorAdjusted = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
-        Canvas(colorAdjusted).drawBitmap(rotated, 0f, 0f, paint)
-        if (colorAdjusted != rotated) rotated.recycle()
+        val result = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
+        Canvas(result).drawBitmap(rotated, 0f, 0f, paint)
+        if (result != rotated) rotated.recycle()
 
-        // 3. Simulated Bokeh / Depth (Vignette)
-        // Draws a subtle dark gradient around the edges to focus on the center (face).
-        // Optimized to draw directly on the bitmap to save RAM on budget phones.
-        val width = colorAdjusted.width.toFloat()
-        val height = colorAdjusted.height.toFloat()
-        val maxDim = Math.max(width, height)
-        val gradient = RadialGradient(width / 2f, height / 2f, maxDim / 1.5f,
-            intArrayOf(0x00000000, 0x00000000, 0x60000000), // Transparent center -> Soft dark edges
-            floatArrayOf(0.4f, 0.75f, 1.0f),
-            Shader.TileMode.CLAMP)
-        val vignettePaint = Paint().apply {
-            shader = gradient
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
-        }
-        Canvas(colorAdjusted).drawRect(0f, 0f, width, height, vignettePaint)
-
-        return colorAdjusted
+        return result
     }
 
     // 100% UNTOUCHED WORKING YUV CONVERSION
