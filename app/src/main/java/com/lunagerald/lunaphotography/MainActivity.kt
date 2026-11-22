@@ -254,8 +254,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                     val outputBitmap = applyProPipeline(sourceBitmap, rot)
                     sourceBitmap.recycle()
                     val bos = ByteArrayOutputStream()
-                    if (formatIndex == 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        outputBitmap.compress(Bitmap.CompressFormat.HEIF, 95, bos)
+                    if (formatIndex == 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        outputBitmap.compress(Bitmap.CompressFormat.HEIC, 95, bos)
                     } else {
                         outputBitmap.compress(Bitmap.CompressFormat.JPEG, 95, bos)
                     }
