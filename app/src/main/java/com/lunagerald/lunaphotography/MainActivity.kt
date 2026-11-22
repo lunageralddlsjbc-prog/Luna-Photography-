@@ -143,6 +143,9 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     private var isPinching = false
     private fun setZoom(ratio: Float, activeIndex: Int, zoomPills: List<TextView>) {
         val cam = currentCamera ?: return
+    val zs = cam.cameraInfo.zoomState.value
+    android.widget.Toast.makeText(this, "zoom min " + (zs?.minZoomRatio ?: -1f) + " max " + (zs?.maxZoomRatio ?: -1f), android.widget.Toast.LENGTH_SHORT).show()
+    cam.cameraControl.setZoomRatio(1f)
         val start = currentZoom
         zoomAnimator?.cancel()
         zoomAnimator = android.animation.ValueAnimator.ofFloat(start, ratio.coerceIn(0.5f, 3f)).apply { duration = 300; interpolator = android.view.animation.DecelerateInterpolator(); addUpdateListener { val z = it.animatedValue as Float; currentZoom = z; cam.cameraControl.setZoomRatio(z) }; start() }
@@ -174,8 +177,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                 var finalSelector = baseSelector
                 if (false && isNightMode && extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.NIGHT)) {
                     finalSelector = extensionsManager.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.NIGHT)
-                } else if (extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR)) {
-                    finalSelector = extensionsManager.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
+    // HDR OFF - HDR blocks zoom
+    // HDR selector disabled
                 }
                 
                 imageCapture = captureBuilder.build()
