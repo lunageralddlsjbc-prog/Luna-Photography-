@@ -172,13 +172,13 @@ class QuickMenu(
                     iconView?.background = GradientDrawable().apply {
                         setColor(0xFFFFFFFF.toInt()); shape = GradientDrawable.OVAL
                     }
-                    iconView?.setColorFilter(0xFF000000.toInt())
+                    (iconView as? ImageView)?.setColorFilter(0xFF000000.toInt())
                     labelView?.setTextColor(0xFFFFFFFF.toInt())
                 } else {
                     iconView?.background = GradientDrawable().apply {
                         setColor(0xFF2C2C2E.toInt()); shape = GradientDrawable.OVAL
                     }
-                    iconView?.setColorFilter(0xFFFFFFFF.toInt())
+                    (iconView as? ImageView)?.setColorFilter(0xFFFFFFFF.toInt())
                     labelView?.setTextColor(0xFFFFFFFF.toInt())
                 }
                 if (displayText != null) labelView?.text = "$label $displayText"
