@@ -255,7 +255,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                     sourceBitmap.recycle()
                     val bos = ByteArrayOutputStream()
                     if (formatIndex == 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        outputBitmap.compress(Bitmap.CompressFormat.JPEG, 95, bos)
+                        outputBitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 95, bos)
                     } else {
                         outputBitmap.compress(Bitmap.CompressFormat.JPEG, 95, bos)
                     }
