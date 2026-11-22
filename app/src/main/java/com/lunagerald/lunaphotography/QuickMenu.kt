@@ -10,17 +10,46 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.GridLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlin.math.roundToInt
 
 enum class Look(val label: String, val matrix: FloatArray, val exposureRatio: Float) {
-    NORMAL("Normal", floatArrayOf(1.05f,0f,0f,0f,4f, 0f,1.03f,0f,0f,3f, 0f,0f,1.02f,0f,1f, 0f,0f,0f,1f,0f), 0f),
-    VIBRANT("Vibrant", floatArrayOf(1.10f,0f,0f,0f,6f, 0f,1.08f,0f,0f,3f, 0f,0f,1.06f,0f,0f, 0f,0f,0f,1f,0f), 0f),
-    WARM("Warm", floatArrayOf(1.12f,0f,0f,0f,10f, 0f,1.05f,0f,0f,5f, 0f,0f,0.95f,0f,0f, 0f,0f,0f,1f,0f), 0f),
-    COOL("Cool", floatArrayOf(0.95f,0f,0f,0f,0f, 0f,1.02f,0f,0f,3f, 0f,0f,1.12f,0f,8f, 0f,0f,0f,1f,0f), 0f),
-    NIGHT("Night", floatArrayOf(1.10f,0f,0f,0f,22f, 0f,1.08f,0f,0f,16f, 0f,0f,1.05f,0f,10f, 0f,0f,0f,1f,0f), 0.8f)
+    // 🌟 THE LUNA LOOK: Warm highlights, neutral shadows, punchy natural greens/blues, natural skin tones.
+    NORMAL("Luna", floatArrayOf(
+        1.06f, 0.00f, 0.00f, 0.00f,  6.0f,  // Red: Warm highlights, natural skin tone lift
+        0.00f, 1.05f, 0.00f, 0.00f,  3.0f,  // Green: Punchy, natural greens
+        0.00f, 0.00f, 1.04f, 0.00f,  2.0f,  // Blue: Natural blues, prevents muddy shadows
+        0.00f, 0.00f, 0.00f, 1.00f,  0.0f   // Alpha: Unchanged
+    ), 0f),
+    
+    VIBRANT("Vibrant", floatArrayOf(
+        1.10f, 0.00f, 0.00f, 0.00f,  8.0f,
+        0.00f, 1.08f, 0.00f, 0.00f,  4.0f,
+        0.00f, 0.00f, 1.06f, 0.00f,  2.0f,
+        0.00f, 0.00f, 0.00f, 1.00f,  0.0f
+    ), 0f),
+    
+    WARM("Warm", floatArrayOf(
+        1.12f, 0.00f, 0.00f, 0.00f, 12.0f,
+        0.00f, 1.05f, 0.00f, 0.00f,  6.0f,
+        0.00f, 0.00f, 0.95f, 0.00f,  0.0f,
+        0.00f, 0.00f, 0.00f, 1.00f,  0.0f
+    ), 0f),
+    
+    COOL("Cool", floatArrayOf(
+        0.95f, 0.00f, 0.00f, 0.00f,  0.0f,
+        0.00f, 1.02f, 0.00f, 0.00f,  3.0f,
+        0.00f, 0.00f, 1.12f, 0.00f,  8.0f,
+        0.00f, 0.00f, 0.00f, 1.00f,  0.0f
+    ), 0f),
+    
+    NIGHT("Night", floatArrayOf(
+        1.08f, 0.00f, 0.00f, 0.00f, 18.0f, // Strong shadow lift for low light
+        0.00f, 1.06f, 0.00f, 0.00f, 12.0f,
+        0.00f, 0.00f, 1.04f, 0.00f,  8.0f,
+        0.00f, 0.00f, 0.00f, 1.00f,  0.0f
+    ), 0.8f)
 }
 
 class QuickMenu(
@@ -50,7 +79,7 @@ class QuickMenu(
         sheet = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                setColor(0xFF1C1C1E.toInt()) // iPhone dark gray
+                setColor(0xFF1C1C1E.toInt())
                 cornerRadii = floatArrayOf(dp(20f), dp(20f), dp(20f), dp(20f), 0f, 0f, 0f, 0f)
             }
             setPadding(dp(16), dp(12), dp(16), dp(24))
@@ -59,10 +88,9 @@ class QuickMenu(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM
             )
-            setOnClickListener { /* absorb taps */ }
+            setOnClickListener { }
         }
 
-        // Drag handle
         val handle = View(activity).apply {
             background = GradientDrawable().apply {
                 setColor(0xFF3A3A3C.toInt())
@@ -75,7 +103,6 @@ class QuickMenu(
         }
         sheet.addView(handle)
 
-        // Title
         val title = TextView(activity).apply {
             text = "Camera Controls"
             setTextColor(Color.WHITE)
@@ -85,7 +112,6 @@ class QuickMenu(
         }
         sheet.addView(title)
 
-        // 3-column grid
         val grid = GridLayout(activity).apply {
             columnCount = 3
             rowCount = 3
@@ -115,7 +141,6 @@ class QuickMenu(
         root.addView(sheet)
         content.addView(root)
 
-        // Drag to close
         sheet.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> startY = event.rawY
@@ -156,7 +181,7 @@ class QuickMenu(
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             background = GradientDrawable().apply {
-                setColor(0xFF2C2C2E.toInt()) // Dark circle
+                setColor(0xFF2C2C2E.toInt())
                 shape = GradientDrawable.OVAL
             }
             layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)).apply {
@@ -181,7 +206,7 @@ class QuickMenu(
         val styles = listOf(Look.NORMAL, Look.VIBRANT, Look.WARM, Look.COOL)
         val idx = styles.indexOf(currentStyle)
         currentStyle = styles[(idx + 1) % styles.size]
-        if (isNightMode) toggleNight() // Turn off night if switching styles
+        if (isNightMode) toggleNight()
         onStyleChange(currentStyle)
         toast("Style: ${currentStyle.label}")
     }
