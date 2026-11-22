@@ -21,6 +21,8 @@ import android.provider.MediaStore
 import android.view.MotionEvent
 import android.view.View
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
@@ -30,12 +32,10 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
-import androidx.camera.extensions.ExtensionMode
-import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.camera.view.PreviewView
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -47,9 +47,12 @@ class MainActivity : AppCompatActivity() {
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private lateinit var previewView: PreviewView
     private lateinit var focusRing: View
-    private var extensionsManager: ExtensionsManager? = null
-    private var cameraProvider: ProcessCameraProvider? = null
-    private var camera: Camera? = null // STORE THE CAMERA REFERENCE HERE
+    private var currentCamera: Camera? = null
+
+    // UI State
+    private val flashModes = arrayOf(ImageCapture.FLASH_MODE_AUTO, ImageCapture.FLASH_MODE_ON, ImageCapture.FLASH_MODE_OFF)
+    private val flashLabels = arrayOf("⚡ AUTO", "⚡ ON", "⚡ OFF")
+    private var flashIndex = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,10 +63,60 @@ class MainActivity : AppCompatActivity() {
         focusRing = findViewById(R.id.focusRing)
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
+        val flashPill = findViewById<TextView>(R.id.flashPill)
+        val gearPill = findViewById<ImageView>(R.id.gearPill)
+        
+        val zoomPills = listOf(
+            findViewById<TextView>(R.id.zoomHalf),
+            findViewById<TextView>(R.id.zoomOne),
+            findViewById<TextView>(R.id.zoomThree)
+        )
+        val modePills = listOf(
+            findViewById<TextView>(R.id.mTime),
+            findViewById<TextView>(R.id.mSlo),
+            findViewById<TextView>(R.id.mVideo),
+            findViewById<TextView>(R.id.mPhoto),
+            findViewById<TextView>(R.id.mPortrait),
+            findViewById<TextView>(R.id.mPano)
+        )
 
+        // Shutter & Switch
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
         switchBtn.setOnClickListener { switchCamera() }
 
+        // Flash Cycle
+        flashPill.setOnClickListener {
+            flashIndex = (flashIndex + 1) % flashModes.size
+            imageCapture?.flashMode = flashModes[flashIndex]
+            flashPill.text = flashLabels[flashIndex]
+            triggerHaptic()
+        }
+
+        // Gear (Styles)
+        gearPill.setOnClickListener { 
+            Toast.makeText(this, "Style: Luna Default", Toast.LENGTH_SHORT).show()
+            triggerHaptic()
+        }
+
+        // Zoom Pills
+        zoomPills[0].setOnClickListener { setZoom(0.5f, 0, zoomPills) }
+        zoomPills[1].setOnClickListener { setZoom(1f, 1, zoomPills) }
+        zoomPills[2].setOnClickListener { setZoom(3f, 2, zoomPills) }
+
+        // Mode Pills (Visual selection only)
+        val modeNames = arrayOf("TIME-LAPSE", "SLO-MO", "VIDEO", "PHOTO", "PORTRAIT", "PANORAMA")
+        modePills.forEachIndexed { i, tv ->
+            tv.setOnClickListener {
+                modePills.forEach { it.setTextColor(0x99FFFFFF.toInt()) }
+                tv.setTextColor(0xFFFFD60A.toInt())
+                if (modeNames[i] != "PHOTO") {
+                    Toast.makeText(this, "${modeNames[i]} mode (Photo pipeline active)", Toast.LENGTH_SHORT).show()
+                }
+                triggerHaptic()
+            }
+        }
+
+        // Tap-to-Focus
         previewView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
                 triggerHaptic()
@@ -73,52 +126,48 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        if (allPermissionsGranted()) initializeCamera()
+        if (allPermissionsGranted()) startCamera()
         else ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
     }
 
-    private fun initializeCamera() {
-        val providerFuture = ProcessCameraProvider.getInstance(this)
-        providerFuture.addListener({
-            cameraProvider = providerFuture.get()
-            val extFuture = ExtensionsManager.getInstanceAsync(this, cameraProvider!!)
-            extFuture.addListener({
-                try { extensionsManager = extFuture.get() } catch (_: Exception) {}
-                startCamera()
-            }, ContextCompat.getMainExecutor(this))
-        }, ContextCompat.getMainExecutor(this))
+    private fun setZoom(ratio: Float, activeIndex: Int, zoomPills: List<TextView>) {
+        currentCamera?.cameraControl?.setZoomRatio(ratio)
+        zoomPills.forEachIndexed { i, tv ->
+            if (i == activeIndex) {
+                tv.setBackgroundResource(R.drawable.pill_active)
+                tv.setTextColor(0xFF000000.toInt())
+            } else {
+                tv.setBackgroundResource(R.drawable.pill_inactive)
+                tv.setTextColor(0xFFFFFFFF.toInt())
+            }
+        }
     }
 
     private fun startCamera() {
-        val provider = cameraProvider ?: return
-        val preview = Preview.Builder().build().also { 
-            it.setSurfaceProvider(previewView.surfaceProvider) 
-        }
-        val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
-        
-        val finalSelector = if (extensionsManager != null && 
-            extensionsManager!!.isExtensionAvailable(baseSelector, ExtensionMode.HDR)) {
-            extensionsManager!!.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
-        } else baseSelector
-        
-        val capture = ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-            .build()
-        imageCapture = capture
-        
-        try {
-            provider.unbindAll()
-            camera = provider.bindToLifecycle(this, finalSelector, preview, capture) // STORE IT HERE
-        } catch (e: Exception) {
-            Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+        val future = ProcessCameraProvider.getInstance(this)
+        future.addListener({
+            val provider = future.get()
+            val preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
+            imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .build()
+            imageCapture?.flashMode = flashModes[flashIndex] // Apply current flash setting
+            val selector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+            try {
+                provider.unbindAll()
+                currentCamera = provider.bindToLifecycle(this, selector, preview, imageCapture)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }, ContextCompat.getMainExecutor(this))
     }
 
     private fun startTapToFocus(x: Float, y: Float) {
-        val cam = camera ?: return // USE THE STORED REFERENCE (Fixes "Unresolved reference: camera")
+        val cam = currentCamera ?: return
         val point = previewView.meteringPointFactory.createPoint(x, y)
-        val action = FocusMeteringAction.Builder(point, 
-            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
             .setAutoCancelDuration(3, TimeUnit.SECONDS)
             .build()
         cam.cameraControl.startFocusAndMetering(action)
@@ -135,6 +184,7 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    // UNTOUCHED WORKING CAPTURE LOGIC
     private fun takePhoto() {
         val capture = imageCapture ?: return
         val contentValues = ContentValues().apply {
@@ -161,7 +211,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     image.close()
 
-                    val outputBitmap = applyLunaProcessing(sourceBitmap, rot)
+                    val outputBitmap = applyLunaColorMatrix(sourceBitmap, rot)
                     sourceBitmap.recycle()
 
                     val bos = ByteArrayOutputStream()
@@ -174,7 +224,7 @@ class MainActivity : AppCompatActivity() {
                         contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
                         resolver.update(uri, contentValues, null, null)
                     }
-                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved: Premium Quality", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Saved to Gallery", Toast.LENGTH_SHORT).show() }
                 } catch (e: Exception) {
                     runOnUiThread { Toast.makeText(this@MainActivity, "Encode error: ${e.message}", Toast.LENGTH_SHORT).show() }
                 }
@@ -185,12 +235,10 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    private fun applyLunaProcessing(src: Bitmap, rotation: Int): Bitmap {
+    private fun applyLunaColorMatrix(src: Bitmap, rotation: Int): Bitmap {
         val rotated = if (rotation != 0) {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
-            Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { 
-                if (it != src) src.recycle() 
-            }
+            Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { if (it != src) src.recycle() }
         } else src
 
         val cm = ColorMatrix().apply {
@@ -234,27 +282,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun switchCamera() {
-        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) 
-            CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
+        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
         startCamera()
     }
 
     private fun triggerHaptic() {
         try {
             val v = getSystemService(VIBRATOR_SERVICE) as? Vibrator
-            if (v != null && v.hasVibrator()) 
-                v.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+            if (v != null && v.hasVibrator()) v.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
         } catch (_: Exception) {}
     }
 
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all { 
-        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED 
-    }
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all { ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) 
-            initializeCamera()
+        if (requestCode == REQUEST_CODE && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) startCamera()
     }
 
     companion object {
