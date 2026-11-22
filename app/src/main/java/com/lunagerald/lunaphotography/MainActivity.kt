@@ -137,8 +137,12 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         else ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
     }
 
+    private var zoomAnimator: android.animation.ValueAnimator? = null
     private fun setZoom(ratio: Float, activeIndex: Int, zoomPills: List<TextView>) {
-        currentCamera?.cameraControl?.setZoomRatio(ratio)
+        val cam = currentCamera ?: return
+        val start = try { cam.cameraInfo.zoomState.value?.zoomRatio ?: 1f } catch(e: Exception) { 1f }
+        zoomAnimator?.cancel()
+        zoomAnimator = android.animation.ValueAnimator.ofFloat(start, ratio.coerceIn(0.5f, 3f)).apply { duration = 300; interpolator = android.view.animation.DecelerateInterpolator(); addUpdateListener { cam.cameraControl.setZoomRatio(it.animatedValue as Float) }; start() }
         zoomPills.forEachIndexed { i, tv ->
             if (i == activeIndex) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) }
             else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) }
