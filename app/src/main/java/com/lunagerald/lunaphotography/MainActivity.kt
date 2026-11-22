@@ -22,6 +22,7 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -76,7 +77,7 @@ class MainActivity : AppCompatActivity() {
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
         val flashPill = findViewById<TextView>(R.id.flashPill)
-        val gearPill = findViewById<TextView>(R.id.gearPill)
+        val gearPill = findViewById<ImageView>(R.id.gearPill)
         
         zoomPills = listOf(findViewById(R.id.zoomHalf), findViewById(R.id.zoomOne), findViewById(R.id.zoomThree))
         modePills = listOf(findViewById(R.id.mTime), findViewById(R.id.mSlo), findViewById(R.id.mVideo), findViewById(R.id.mPhoto), findViewById(R.id.mPortrait), findViewById(R.id.mPano))

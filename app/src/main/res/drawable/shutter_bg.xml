@@ -1,14 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Pressed State: Inner disc shrinks -->
+    <item android:state_pressed="true">
+        <layer-list>
+            <item>
+                <shape android:shape="oval">
+                    <stroke android:width="4dp" android:color="#FFFFFF" />
+                    <solid android:color="#00000000" />
+                </shape>
+            </item>
+            <item android:top="14dp" android:left="14dp" android:right="14dp" android:bottom="14dp">
+                <shape android:shape="oval"><solid android:color="#FFFFFF" /></shape>
+            </item>
+        </layer-list>
+    </item>
+    <!-- Normal State: Standard size -->
     <item>
-        <shape android:shape="oval">
-            <stroke android:width="4dp" android:color="#FFFFFF" />
-            <solid android:color="#00000000" />
-        </shape>
+        <layer-list>
+            <item>
+                <shape android:shape="oval">
+                    <stroke android:width="4dp" android:color="#FFFFFF" />
+                    <solid android:color="#00000000" />
+                </shape>
+            </item>
+            <item android:top="7dp" android:left="7dp" android:right="7dp" android:bottom="7dp">
+                <shape android:shape="oval"><solid android:color="#FFFFFF" /></shape>
+            </item>
+        </layer-list>
     </item>
-    <item android:top="6dp" android:left="6dp" android:right="6dp" android:bottom="6dp">
-        <shape android:shape="oval">
-            <solid android:color="#FFFFFF" />
-        </shape>
-    </item>
-</layer-list>
+</selector>
