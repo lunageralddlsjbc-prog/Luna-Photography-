@@ -136,42 +136,42 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // FIXED: Using ExtensionsManager API instead of deprecated Extender classes
+    // FIXED: Properly nested ListenableFuture listeners as instructed
     private fun startCamera() {
-        val future = ProcessCameraProvider.getInstance(this)
-        val extensionsFuture = ExtensionsManager.getInstanceAsync(this, future)
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         
-        extensionsFuture.addListener({
-            val provider = future.get()
-            val extensionsManager = extensionsFuture.get()
-            val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            val extensionsFuture = ExtensionsManager.getInstanceAsync(this, cameraProviderFuture)
             
-            // 1. Setup Preview
-            val preview = Preview.Builder()
-                .setTargetResolution(Size(1280, 720))
-                .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-            
-            // 2. Setup Image Capture
-            val captureBuilder = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-            
-            // 3. Apply Extensions via ExtensionsManager (HDR or Night)
-            val extensionMode = if (isNightMode) ExtensionMode.NIGHT else ExtensionMode.HDR
-            val finalSelector = if (extensionsManager.isExtensionAvailable(baseSelector, extensionMode)) {
-                extensionsManager.getExtensionEnabledCameraSelector(baseSelector, extensionMode)
-            } else {
-                baseSelector
-            }
-            
-            imageCapture = captureBuilder.build()
-            imageCapture?.flashMode = flashModes[flashIndex]
-            
-            try {
-                provider.unbindAll()
-                currentCamera = provider.bindToLifecycle(this, finalSelector, preview, imageCapture)
-            } catch (e: Exception) {
-                Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+            extensionsFuture.addListener({
+                val extensionsManager = extensionsFuture.get()
+                val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+                
+                val preview = Preview.Builder()
+                    .setTargetResolution(Size(1280, 720))
+                    .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+                
+                val captureBuilder = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                
+                val extensionMode = if (isNightMode) ExtensionMode.NIGHT else ExtensionMode.HDR
+                val finalSelector = if (extensionsManager.isExtensionAvailable(baseSelector, extensionMode)) {
+                    extensionsManager.getExtensionEnabledCameraSelector(baseSelector, extensionMode)
+                } else {
+                    baseSelector
+                }
+                
+                imageCapture = captureBuilder.build()
+                imageCapture?.flashMode = flashModes[flashIndex]
+                
+                try {
+                    cameraProvider.unbindAll()
+                    currentCamera = cameraProvider.bindToLifecycle(this, finalSelector, preview, imageCapture)
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }, ContextCompat.getMainExecutor(this))
         }, ContextCompat.getMainExecutor(this))
     }
 
