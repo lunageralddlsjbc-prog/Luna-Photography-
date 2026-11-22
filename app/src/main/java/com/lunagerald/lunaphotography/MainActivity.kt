@@ -23,6 +23,7 @@ import android.view.View
 import android.widget.ImageButton
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
@@ -31,11 +32,10 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager
-import androidx.camera.extensions.ImageCaptureExtender
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.camera.view.PreviewView
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -49,6 +49,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var focusRing: View
     private var extensionsManager: ExtensionsManager? = null
     private var cameraProvider: ProcessCameraProvider? = null
+    private var camera: Camera? = null // STORE THE CAMERA REFERENCE HERE
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,7 +64,6 @@ class MainActivity : AppCompatActivity() {
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
         switchBtn.setOnClickListener { switchCamera() }
 
-        // SECRET 4: Tap-to-Focus Listener
         previewView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
                 triggerHaptic()
@@ -96,7 +96,6 @@ class MainActivity : AppCompatActivity() {
         }
         val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
         
-        // SECRET 1: Multi-Frame HDR via correct CameraX 1.3.x API
         val finalSelector = if (extensionsManager != null && 
             extensionsManager!!.isExtensionAvailable(baseSelector, ExtensionMode.HDR)) {
             extensionsManager!!.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
@@ -109,15 +108,14 @@ class MainActivity : AppCompatActivity() {
         
         try {
             provider.unbindAll()
-            provider.bindToLifecycle(this, finalSelector, preview, capture)
+            camera = provider.bindToLifecycle(this, finalSelector, preview, capture) // STORE IT HERE
         } catch (e: Exception) {
             Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // SECRET 4: Focus Metering Logic (AF + AE)
     private fun startTapToFocus(x: Float, y: Float) {
-        val cam = previewView.camera ?: return
+        val cam = camera ?: return // USE THE STORED REFERENCE (Fixes "Unresolved reference: camera")
         val point = previewView.meteringPointFactory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(point, 
             FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
@@ -154,8 +152,6 @@ class MainActivity : AppCompatActivity() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 try {
                     val rot = image.imageInfo.rotationDegrees
-                    
-                    // Decode to Bitmap (Bypasses HAL crash)
                     val sourceBitmap = if (image.format == ImageFormat.JPEG) {
                         val buf = image.planes[0].buffer
                         val bytes = ByteArray(buf.remaining()).also { buf.get(it) }
@@ -165,11 +161,9 @@ class MainActivity : AppCompatActivity() {
                     }
                     image.close()
 
-                    // SECRET 2 & 3: Apply Luna Color Matrix + Tone Mapping
                     val outputBitmap = applyLunaProcessing(sourceBitmap, rot)
                     sourceBitmap.recycle()
 
-                    // Compress to high-quality JPEG
                     val bos = ByteArrayOutputStream()
                     outputBitmap.compress(Bitmap.CompressFormat.JPEG, 95, bos)
                     outputBitmap.recycle()
@@ -191,7 +185,6 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // SECRETS 2 & 3: Signature Color Science + Advanced Tone Mapping
     private fun applyLunaProcessing(src: Bitmap, rotation: Int): Bitmap {
         val rotated = if (rotation != 0) {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
@@ -200,13 +193,12 @@ class MainActivity : AppCompatActivity() {
             }
         } else src
 
-        // iPhone-like Color Matrix: Warmth + Contrast + Highlight Roll-off
         val cm = ColorMatrix().apply {
             set(floatArrayOf(
-                1.05f, 0.0f,  0.0f,  0.0f,  8.0f,   // Red: +5% contrast, +8 warmth
-                0.0f,  1.03f, 0.0f,  0.0f,  4.0f,   // Green: +3% contrast, +4 brightness  
-                0.0f,  0.0f,  0.95f, 0.0f,  0.0f,   // Blue: -5% intensity (reduces cold digital look)
-                0.0f,  0.0f,  0.0f,  1.0f,  0.0f    // Alpha unchanged
+                1.05f, 0.0f,  0.0f,  0.0f,  8.0f,
+                0.0f,  1.03f, 0.0f,  0.0f,  4.0f,
+                0.0f,  0.0f,  0.95f, 0.0f,  0.0f,
+                0.0f,  0.0f,  0.0f,  1.0f,  0.0f
             ))
         }
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(cm) }
