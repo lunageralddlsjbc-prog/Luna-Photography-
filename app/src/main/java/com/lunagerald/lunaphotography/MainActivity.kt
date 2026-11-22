@@ -51,12 +51,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var focusRing: View
     private lateinit var shutterFlash: View
     private var extensionsManager: ExtensionsManager? = null
+    private var cameraProvider: ProcessCameraProvider? = null
     private var camera: Camera? = null
+    
     private var styleIndex = 0
     private val styleNames = arrayOf("Standard", "Warm", "Cool", "Vibrant", "Rich")
+    
     private val flashModes = arrayOf(ImageCapture.FLASH_MODE_AUTO, ImageCapture.FLASH_MODE_ON, ImageCapture.FLASH_MODE_OFF)
     private val flashLabels = arrayOf("⚡ AUTO", "⚡ ON", "⚡ OFF")
     private var flashIndex = 0
+    
     private lateinit var zoomPills: List<TextView>
     private lateinit var modePills: List<TextView>
     private var activeMode = "PHOTO"
@@ -67,25 +71,25 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         previewView = findViewById(R.id.previewView)
-        previewView.setMirrorMode(PreviewView.MirrorMode.MIRROR_FRONT)
         focusRing = findViewById(R.id.focusRing)
         shutterFlash = findViewById(R.id.shutterFlash)
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
         val flashPill = findViewById<TextView>(R.id.flashPill)
         val gearPill = findViewById<TextView>(R.id.gearPill)
+        
         zoomPills = listOf(findViewById(R.id.zoomHalf), findViewById(R.id.zoomOne), findViewById(R.id.zoomThree))
         modePills = listOf(findViewById(R.id.mTime), findViewById(R.id.mSlo), findViewById(R.id.mVideo), findViewById(R.id.mPhoto), findViewById(R.id.mPortrait), findViewById(R.id.mPano))
 
         shutterBtn.setOnClickListener { triggerHaptic(); flashScreen(); takePhoto() }
         switchBtn.setOnClickListener { switchCamera() }
 
-        // Secret: pinch-to-zoom
         val scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val cam = camera ?: return true
                 val cur = cam.cameraInfo.zoomState.value?.zoomRatio ?: 1f
-                cam.cameraControl.setZoomRatio((cur * detector.scaleFactor).coerceIn(1f, cam.cameraInfo.zoomState.value?.zoomRatioRange?.get(1) ?: 10f))
+                val maxZoom = cam.cameraInfo.zoomState.value?.maxZoomRatio ?: 10f
+                cam.cameraControl.setZoomRatio((cur * detector.scaleFactor).coerceIn(1f, maxZoom))
                 return true
             }
         })
@@ -100,12 +104,10 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        // Zoom pills
         zoomPills[0].setOnClickListener { setZoom(0.5f, 0) }
         zoomPills[1].setOnClickListener { setZoom(1f, 1) }
         zoomPills[2].setOnClickListener { setZoom(3f, 2) }
 
-        // Mode pills (visual selection; PHOTO is the working capture mode)
         val modeNames = arrayOf("TIME-LAPSE", "SLO-MO", "VIDEO", "PHOTO", "PORTRAIT", "PANORAMA")
         modePills.forEachIndexed { i, tv ->
             tv.setOnClickListener {
@@ -116,7 +118,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Flash toggle
         flashPill.setOnClickListener {
             flashIndex = (flashIndex + 1) % flashModes.size
             imageCapture?.flashMode = flashModes[flashIndex]
@@ -124,7 +125,6 @@ class MainActivity : AppCompatActivity() {
             triggerHaptic()
         }
 
-        // Photographic Styles (gear cycles color presets)
         gearPill.setOnClickListener {
             styleIndex = (styleIndex + 1) % styleNames.size
             Toast.makeText(this, "Style: ${styleNames[styleIndex]}", Toast.LENGTH_SHORT).show()
@@ -139,40 +139,49 @@ class MainActivity : AppCompatActivity() {
         val cam = camera ?: return
         cam.cameraControl.setZoomRatio(ratio)
         zoomPills.forEachIndexed { i, tv ->
-            if (i == pillIdx) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) } else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) }
+            if (i == pillIdx) { 
+                tv.setBackgroundResource(R.drawable.pill_active)
+                tv.setTextColor(0xFF000000.toInt())
+            } else { 
+                tv.setBackgroundResource(R.drawable.pill_inactive)
+                tv.setTextColor(0xFFFFFFFF.toInt())
+            }
         }
         triggerHaptic()
     }
 
     private fun initializeCamera() {
         val providerFuture = ProcessCameraProvider.getInstance(this)
-        val extFuture = ExtensionsManager.getInstanceAsync(this, providerFuture)
-        extFuture.addListener({
-            try { extensionsManager = extFuture.get() } catch (_: Exception) {}
-            startCamera(providerFuture)
+        providerFuture.addListener({
+            cameraProvider = providerFuture.get()
+            val extFuture = ExtensionsManager.getInstanceAsync(this, cameraProvider!!)
+            extFuture.addListener({
+                try { extensionsManager = extFuture.get() } catch (_: Exception) {}
+                startCamera()
+            }, ContextCompat.getMainExecutor(this))
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun startCamera(providerFuture: com.google.common.util.concurrent.ListenableFuture<ProcessCameraProvider>) {
-        providerFuture.addListener({
-            val provider = providerFuture.get()
-            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-            val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
-            val extMgr = extensionsManager
-            // Secret 1: HDR via the CORRECT selector-based extension API
-            val finalSelector = if (extMgr != null && extMgr.isExtensionAvailable(baseSelector, ExtensionMode.HDR))
-                extMgr.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
-            else baseSelector
-            val capture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build()
-            capture.flashMode = flashModes[flashIndex]
-            imageCapture = capture
-            try {
-                provider.unbindAll()
-                camera = provider.bindToLifecycle(this, finalSelector, preview, capture)
-            } catch (e: Exception) {
-                Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }, ContextCompat.getMainExecutor(this))
+    private fun startCamera() {
+        val provider = cameraProvider ?: return
+        val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+        val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+        val extMgr = extensionsManager
+        
+        val finalSelector = if (extMgr != null && extMgr.isExtensionAvailable(baseSelector, ExtensionMode.HDR))
+            extMgr.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
+        else baseSelector
+        
+        val capture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build()
+        capture.flashMode = flashModes[flashIndex]
+        imageCapture = capture
+        
+        try {
+            provider.unbindAll()
+            camera = provider.bindToLifecycle(this, finalSelector, preview, capture)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun startTapToFocus(x: Float, y: Float) {
@@ -211,6 +220,7 @@ class MainActivity : AppCompatActivity() {
         val resolver = applicationContext.contentResolver
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues) ?: return
         val isFront = lensFacing == CameraSelector.LENS_FACING_FRONT
+        
         capture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 try {
@@ -221,14 +231,18 @@ class MainActivity : AppCompatActivity() {
                         BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     } else yuvToBitmap(image)
                     image.close()
+                    
                     val styled = applyStyle(src, rot, isFront)
                     src.recycle()
+                    
                     val bos = ByteArrayOutputStream()
                     styled.compress(Bitmap.CompressFormat.JPEG, 95, bos)
                     styled.recycle()
+                    
                     resolver.openOutputStream(uri)?.use { it.write(bos.toByteArray()) }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        contentValues.clear(); contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                        contentValues.clear()
+                        contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
                         resolver.update(uri, contentValues, null, null)
                     }
                     runOnUiThread { Toast.makeText(this@MainActivity, "Saved (${styleNames[styleIndex]})", Toast.LENGTH_SHORT).show() }
@@ -248,12 +262,13 @@ class MainActivity : AppCompatActivity() {
             if (mirror) preScale(-1f, 1f)
         }
         val rotated = Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { if (it != src) src.recycle() }
+        
         val arrays = arrayOf(
-            floatArrayOf(1.05f,0f,0f,0f,8f, 0f,1.03f,0f,0f,4f, 0f,0f,0.95f,0f,0f, 0f,0f,0f,1f,0f),
-            floatArrayOf(1.08f,0f,0f,0f,12f, 0f,1.02f,0f,0f,6f, 0f,0f,0.90f,0f,0f, 0f,0f,0f,1f,0f),
-            floatArrayOf(0.95f,0f,0f,0f,0f, 0f,1.02f,0f,0f,4f, 0f,0f,1.08f,0f,8f, 0f,0f,0f,1f,0f),
-            floatArrayOf(1.12f,0f,0f,0f,6f, 0f,1.12f,0f,0f,4f, 0f,0f,1.12f,0f,2f, 0f,0f,0f,1f,0f),
-            floatArrayOf(1.18f,0f,0f,0f,10f, 0f,1.15f,0f,0f,6f, 0f,0f,1.10f,0f,2f, 0f,0f,0f,1f,0f)
+            floatArrayOf(1.05f,0f,0f,0f,8f, 0f,1.03f,0f,0f,4f, 0f,0f,0.95f,0f,0f, 0f,0f,0f,1f,0f), // Standard
+            floatArrayOf(1.08f,0f,0f,0f,12f, 0f,1.02f,0f,0f,6f, 0f,0f,0.90f,0f,0f, 0f,0f,0f,1f,0f), // Warm
+            floatArrayOf(0.95f,0f,0f,0f,0f, 0f,1.02f,0f,0f,4f, 0f,0f,1.08f,0f,8f, 0f,0f,0f,1f,0f),  // Cool
+            floatArrayOf(1.12f,0f,0f,0f,6f, 0f,1.12f,0f,0f,4f, 0f,0f,1.12f,0f,2f, 0f,0f,0f,1f,0f),  // Vibrant
+            floatArrayOf(1.18f,0f,0f,0f,10f, 0f,1.15f,0f,0f,6f, 0f,0f,1.10f,0f,2f, 0f,0f,0f,1f,0f)  // Rich
         )
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { set(arrays[styleIndex]) }) }
         val out = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
@@ -274,9 +289,11 @@ class MainActivity : AppCompatActivity() {
         var pos = 0
         for (row in 0 until h) { yBuf.position(row * yRow); yBuf.get(nv21, pos, w); pos += w }
         val uvH = h / 2; pos = ySize
-        for (row in 0 until uvH) for (col in 0 until w / 2) {
-            nv21[pos++] = vBuf.get(row * vRow + col * vPix)
-            nv21[pos++] = uBuf.get(row * uRow + col * uPix)
+        for (row in 0 until uvH) {
+            for (col in 0 until w / 2) {
+                nv21[pos++] = vBuf.get(row * vRow + col * vPix)
+                nv21[pos++] = uBuf.get(row * uRow + col * uPix)
+            }
         }
         val bos = ByteArrayOutputStream()
         YuvImage(nv21, ImageFormat.NV21, w, h, null).compressToJpeg(Rect(0, 0, w, h), 95, bos)
@@ -286,8 +303,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun switchCamera() {
         lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
-        camera?.let { ProcessCameraProvider.getInstance(this).get().unbindAll() }
-        initializeCamera()
+        startCamera() // startCamera calls provider.unbindAll() automatically
     }
 
     private fun triggerHaptic() {
