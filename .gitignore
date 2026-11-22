@@ -1,0 +1,8 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+*.zip
+gradle/wrapper/gradle-8.2-bin.zip
+gradle/wrapper/gradle-8.2/
