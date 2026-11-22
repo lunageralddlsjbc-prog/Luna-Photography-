@@ -11,77 +11,111 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.GridLayout
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import kotlin.math.roundToInt
 
 enum class Look(val label: String, val matrix: FloatArray, val exposureRatio: Float) {
-    NORMAL("Luna", floatArrayOf(1.04f,0f,0f,0f,3f, 0f,1.03f,0f,0f,1f, 0f,0f,1.02f,0f,0f, 0f,0f,0f,1f,0f), 0f),
-    VIBRANT("Vibrant", floatArrayOf(1.08f,0f,0f,0f,5f, 0f,1.06f,0f,0f,3f, 0f,0f,1.05f,0f,1f, 0f,0f,0f,1f,0f), 0f),
-    WARM("Warm", floatArrayOf(1.10f,0f,0f,0f,8f, 0f,1.04f,0f,0f,4f, 0f,0f,0.96f,0f,0f, 0f,0f,0f,1f,0f), 0f),
-    COOL("Cool", floatArrayOf(0.96f,0f,0f,0f,0f, 0f,1.02f,0f,0f,2f, 0f,0f,1.10f,0f,5f, 0f,0f,0f,1f,0f), 0f),
-    
-    // 🎬 CINEMATIC LOOK: High contrast, rich reds, teal shadows, deep blacks.
-    CINEMATIC("Cinematic", floatArrayOf(
-        1.15f, 0.00f, 0.00f, 0.00f,  12.0f, // Boost Red (Rich skin/reds) + Warm highlight lift
-        0.00f, 0.95f, 0.00f, 0.00f,  -5.0f, // Slightly reduce Green (pushes towards Teal/Magenta balance) + Deepen shadows
-        0.05f, 0.05f, 1.15f, 0.00f,   8.0f, // Boost Blue (Teal shadows) + Cool shadow lift
-        0.00f, 0.00f, 0.00f, 1.00f,   0.0f  // Alpha
-    ), 0.2f), // Slight exposure boost for cinematic mood
-
+    NORMAL("Normal", floatArrayOf(1.04f,0f,0f,0f,3f, 0f,1.03f,0f,0f,1f, 0f,0f,1.02f,0f,0f, 0f,0f,0f,1f,0f), 0f),
+    LUNA("Luna", floatArrayOf(1.06f,0f,0f,0f,6f, 0f,1.05f,0f,0f,3f, 0f,0f,1.04f,0f,2f, 0f,0f,0f,1f,0f), 0f),
+    CINEMATIC("Cinematic", floatArrayOf(1.15f,0f,0f,0f,12f, 0f,0.95f,0f,0f,-5f, 0.05f,0.05f,1.15f,0f,8f, 0f,0f,0f,1f,0f), 0.2f),
     NIGHT("Night", floatArrayOf(1.06f,0f,0f,0f,6f, 0f,1.04f,0f,0f,2f, 0f,0f,1.03f,0f,0f, 0f,0f,0f,1f,0f), 0.0f)
 }
 
 class QuickMenu(
     private val activity: Activity,
-    private val onFlashCycle: () -> Unit,
-    private val onStyleChange: (Look) -> Unit,
-    private val onNightToggle: (Boolean) -> Unit
+    private val callbacks: Callbacks
 ) {
+    interface Callbacks {
+        fun onFlashCycle()
+        fun onLiveToggle(enabled: Boolean)
+        fun onAspectCycle()
+        fun onTimerCycle()
+        fun onExposureChange(value: Float)
+        fun onStyleCycle()
+        fun onDepthToggle(enabled: Boolean)
+        fun onNightToggle(enabled: Boolean)
+        fun onFormatCycle()
+    }
+
     private val root: FrameLayout
     private val sheet: LinearLayout
     private var shown = false
     private var startY = 0f
-    private var currentStyle = Look.NORMAL
-    private var isNightMode = false
+
+    private var flashState = 0 // 0=AUTO, 1=ON, 2=OFF
+    private var liveEnabled = false
+    private var aspectIndex = 0 // 0=4:3, 1=16:9, 2=1:1
+    private var timerIndex = 0 // 0=OFF, 1=3s, 2=10s
+    private var exposureValue = 0f
+    private var styleIndex = 0
+    private var depthEnabled = false
+    private var nightEnabled = false
+    private var formatIndex = 0 // 0=JPEG, 1=HEIC
+
+    private val flashLabels = arrayOf("Auto", "On", "Off")
+    private val aspectLabels = arrayOf("4:3", "16:9", "1:1")
+    private val timerLabels = arrayOf("Off", "3s", "10s")
+    private val formatLabels = arrayOf("JPEG", "HEIC")
+    private val styleLabels = arrayOf("Normal", "Luna", "Cinematic")
 
     init {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
         root = FrameLayout(activity).apply {
-            setBackgroundColor(0x99000000.toInt()); visibility = View.GONE; alpha = 0f; setOnClickListener { hide() }
+            setBackgroundColor(0xE6000000.toInt())
+            visibility = View.GONE
+            alpha = 0f
+            setOnClickListener { hide() }
         }
         sheet = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply { setColor(0xFF1C1C1E.toInt()); cornerRadii = floatArrayOf(dp(20f), dp(20f), dp(20f), dp(20f), 0f, 0f, 0f, 0f) }
-            setPadding(dp(16), dp(12), dp(16), dp(24))
-            layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
+            background = GradientDrawable().apply {
+                setColor(0xE61C1C1E.toInt())
+                cornerRadii = floatArrayOf(dp(24f), dp(24f), dp(24f), dp(24f), 0f, 0f, 0f, 0f)
+            }
+            setPadding(dp(20), dp(12), dp(20), dp(24))
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM
+            )
             setOnClickListener { }
         }
+        // Drag handle
         sheet.addView(View(activity).apply {
-            background = GradientDrawable().apply { setColor(0xFF3A3A3C.toInt()); cornerRadius = dp(2f).toFloat() }
-            layoutParams = LinearLayout.LayoutParams(dp(36), dp(4)).apply { gravity = Gravity.CENTER_HORIZONTAL; setMargins(0, 0, 0, dp(12)) }
+            background = GradientDrawable().apply {
+                setColor(0xFF48484A.toInt())
+                cornerRadius = dp(2f).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(36), dp(5)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                setMargins(0, 0, 0, dp(16))
+            }
         })
-        sheet.addView(TextView(activity).apply { text = "Camera Controls"; setTextColor(Color.WHITE); textSize = 17f; gravity = Gravity.CENTER; setPadding(0, 0, 0, dp(16)) })
-        
+        // 3-column grid
         val grid = GridLayout(activity).apply {
-            columnCount = 3; rowCount = 3
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            columnCount = 3
+            rowCount = 3
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
         }
-        
-        // Updated items list to include Cinematic logic if needed, but Styles cycles through all looks now
         val items = listOf(
-            Triple("⚡", "Flash") { onFlashCycle() },
-            Triple("●", "Live") { toast("Live Photo coming soon") },
-            Triple("⬜", "Aspect") { toast("Aspect ratio coming soon") },
-            Triple("⏱", "Timer") { toast("Timer coming soon") },
-            Triple("☀", "Exposure") { toast("Auto exposure active") },
-            Triple("🎨", "Styles") { cycleStyle() },
-            Triple("◐", "Depth") { toast("Depth control coming soon") },
-            Triple("🌙", "Night") { toggleNight() },
-            Triple("📄", "Format") { toast("Format settings coming soon") }
+            Triple(R.drawable.ic_flash, "Flash") { onFlashClick() },
+            Triple(R.drawable.ic_live, "Live") { onLiveClick() },
+            Triple(R.drawable.ic_aspect, "Aspect") { onAspectClick() },
+            Triple(R.drawable.ic_timer, "Timer") { onTimerClick() },
+            Triple(R.drawable.ic_exposure, "Exposure") { onExposureClick() },
+            Triple(R.drawable.ic_styles, "Styles") { onStylesClick() },
+            Triple(R.drawable.ic_depth, "Depth") { onDepthClick() },
+            Triple(R.drawable.ic_night, "Night") { onNightClick() },
+            Triple(R.drawable.ic_format, "Format") { onFormatClick() }
         )
-        for ((icon, label, action) in items) grid.addView(buildItem(icon, label, action))
-        sheet.addView(grid); root.addView(sheet); content.addView(root)
-        
+        for ((iconRes, label, action) in items) grid.addView(buildItem(iconRes, label, action))
+        sheet.addView(grid)
+        root.addView(sheet)
+        content.addView(root)
         sheet.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> startY = event.rawY
@@ -96,36 +130,127 @@ class QuickMenu(
         }
     }
 
-    private fun buildItem(icon: String, label: String, action: () -> Unit): View {
+    private fun buildItem(iconRes: Int, label: String, action: () -> Unit): View {
         val item = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(8), dp(8), dp(8), dp(8))
-            layoutParams = GridLayout.LayoutParams().apply { width = 0; height = ViewGroup.LayoutParams.WRAP_CONTENT; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f) }
-            isClickable = true; setOnClickListener { action() }
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(8), dp(12), dp(8), dp(8))
+            layoutParams = GridLayout.LayoutParams().apply {
+                width = 0; height = ViewGroup.LayoutParams.WRAP_CONTENT
+                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+            }
+            isClickable = true
+            setOnClickListener { action() }
+            tag = label
         }
-        item.addView(TextView(activity).apply {
-            text = icon; textSize = 20f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
-            background = GradientDrawable().apply { setColor(0xFF2C2C2E.toInt()); shape = GradientDrawable.OVAL }
-            layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)).apply { gravity = Gravity.CENTER_HORIZONTAL }
-        })
-        item.addView(TextView(activity).apply { text = label; setTextColor(Color.WHITE); textSize = 11f; gravity = Gravity.CENTER; setPadding(0, dp(6), 0, 0) })
+        val iconView = View(activity).apply {
+            background = activity.getDrawable(iconRes)
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+            tag = "icon_$label"
+        }
+        item.addView(iconView)
+        val labelView = TextView(activity).apply {
+            text = label
+            setTextColor(Color.WHITE)
+            textSize = 11f
+            gravity = Gravity.CENTER
+            setPadding(0, dp(6), 0, 0)
+            tag = "label_$label"
+        }
+        item.addView(labelView)
         return item
     }
 
-    private fun cycleStyle() {
-        // Cycle through all styles including Cinematic
-        val styles = listOf(Look.NORMAL, Look.VIBRANT, Look.WARM, Look.COOL, Look.CINEMATIC)
-        currentStyle = styles[(styles.indexOf(currentStyle) + 1) % styles.size]
-        if (isNightMode) toggleNight()
-        onStyleChange(currentStyle); toast("Style: ${currentStyle.label}")
+    private fun updateItemAppearance(label: String, active: Boolean, displayText: String? = null) {
+        val grid = sheet.getChildAt(1) as? GridLayout ?: return
+        for (i in 0 until grid.childCount) {
+            val item = grid.getChildAt(i) as? LinearLayout ?: continue
+            if (item.tag == label) {
+                val iconView = item.findViewWithTag<View>("icon_$label")
+                val labelView = item.findViewWithTag<TextView>("label_$label")
+                if (active) {
+                    iconView?.background = GradientDrawable().apply {
+                        setColor(0xFFFFFFFF.toInt()); shape = GradientDrawable.OVAL
+                    }
+                    iconView?.background?.setTint(0xFF000000.toInt())
+                    labelView?.setTextColor(0xFFFFFFFF.toInt())
+                } else {
+                    iconView?.background = GradientDrawable().apply {
+                        setColor(0xFF2C2C2E.toInt()); shape = GradientDrawable.OVAL
+                    }
+                    iconView?.background?.setTint(0xFFFFFFFF.toInt())
+                    labelView?.setTextColor(0xFFFFFFFF.toInt())
+                }
+                if (displayText != null) labelView?.text = "$label $displayText"
+                break
+            }
+        }
     }
 
-    private fun toggleNight() {
-        isNightMode = !isNightMode
-        if (isNightMode) { onNightToggle(true); toast("Night Mode: ON") }
-        else { onNightToggle(false); onStyleChange(currentStyle); toast("Night Mode: OFF") }
+    private fun onFlashClick() {
+        flashState = (flashState + 1) % 3
+        callbacks.onFlashCycle()
+        updateItemAppearance("Flash", flashState != 0, flashLabels[flashState])
+    }
+    private fun onLiveClick() {
+        liveEnabled = !liveEnabled
+        callbacks.onLiveToggle(liveEnabled)
+        updateItemAppearance("Live", liveEnabled)
+    }
+    private fun onAspectClick() {
+        aspectIndex = (aspectIndex + 1) % 3
+        callbacks.onAspectCycle()
+        updateItemAppearance("Aspect", aspectIndex != 0, aspectLabels[aspectIndex])
+    }
+    private fun onTimerClick() {
+        timerIndex = (timerIndex + 1) % 3
+        callbacks.onTimerCycle()
+        updateItemAppearance("Timer", timerIndex != 0, timerLabels[timerIndex])
+    }
+    private fun onExposureClick() {
+        showExposureSlider()
+    }
+    private fun onStylesClick() {
+        styleIndex = (styleIndex + 1) % 3
+        callbacks.onStyleCycle()
+        updateItemAppearance("Styles", styleIndex != 0, styleLabels[styleIndex])
+    }
+    private fun onDepthClick() {
+        depthEnabled = !depthEnabled
+        callbacks.onDepthToggle(depthEnabled)
+        updateItemAppearance("Depth", depthEnabled)
+    }
+    private fun onNightClick() {
+        nightEnabled = !nightEnabled
+        callbacks.onNightToggle(nightEnabled)
+        updateItemAppearance("Night", nightEnabled)
+    }
+    private fun onFormatClick() {
+        formatIndex = (formatIndex + 1) % 2
+        callbacks.onFormatCycle()
+        updateItemAppearance("Format", formatIndex != 0, formatLabels[formatIndex])
     }
 
-    private fun toast(msg: String) = android.widget.Toast.makeText(activity, msg, android.widget.Toast.LENGTH_SHORT).show()
+    private fun showExposureSlider() {
+        val dialog = android.app.AlertDialog.Builder(activity)
+            .setTitle("Exposure")
+            .setView(SeekBar(activity).apply {
+                max = 40
+                progress = (exposureValue * 10 + 20).toInt().coerceIn(0, 40)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        exposureValue = (progress - 20) / 10f
+                        callbacks.onExposureChange(exposureValue)
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+                })
+            })
+            .setPositiveButton("Done", null)
+            .create()
+        dialog.show()
+        updateItemAppearance("Exposure", exposureValue != 0f, String.format("%.1f", exposureValue))
+    }
 
     fun toggle() = if (shown) hide() else show()
     fun show() {

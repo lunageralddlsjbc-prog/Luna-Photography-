@@ -18,6 +18,8 @@ import android.graphics.Rect
 import android.graphics.YuvImage
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.MediaStore
@@ -51,7 +53,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     private lateinit var cameraExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
@@ -66,33 +68,34 @@ class MainActivity : AppCompatActivity() {
     private lateinit var quickMenu: QuickMenu
     private var activeLook: Look = Look.NORMAL
     private var isNightMode = false
+    private var isDepthEnabled = false
+    private var isLiveEnabled = false
+    private var aspectIndex = 0
+    private var timerIndex = 0
+    private var exposureValue = 0f
+    private var formatIndex = 0
+
+    private val aspectResolutions = arrayOf(
+        Size(1280, 960),  // 4:3
+        Size(1280, 720),  // 16:9
+        Size(960, 960)    // 1:1
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         cameraExecutor = Executors.newSingleThreadExecutor()
-
         previewView = findViewById(R.id.previewView)
         previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
-
         focusRing = findViewById(R.id.focusRing)
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
         val flashPill = findViewById<TextView>(R.id.flashPill)
         val gearPill = findViewById<ImageView>(R.id.gearPill)
-
         val zoomPills = listOf(findViewById<TextView>(R.id.zoomHalf), findViewById<TextView>(R.id.zoomOne), findViewById<TextView>(R.id.zoomThree))
         val modePills = listOf(findViewById<TextView>(R.id.mTime), findViewById<TextView>(R.id.mSlo), findViewById<TextView>(R.id.mVideo), findViewById<TextView>(R.id.mPhoto), findViewById<TextView>(R.id.mPortrait), findViewById<TextView>(R.id.mPano))
 
-        quickMenu = QuickMenu(this,
-            onFlashCycle = {
-                flashIndex = (flashIndex + 1) % flashModes.size
-                imageCapture?.flashMode = flashModes[flashIndex]
-                flashPill.text = flashLabels[flashIndex]
-            },
-            onStyleChange = { look -> activeLook = look; startCamera() },
-            onNightToggle = { nightOn -> isNightMode = nightOn; startCamera() }
-        )
+        quickMenu = QuickMenu(this, this)
 
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
         switchBtn.setOnClickListener { switchCameraWithAnimation() }
@@ -103,11 +106,9 @@ class MainActivity : AppCompatActivity() {
             triggerHaptic()
         }
         gearPill.setOnClickListener { triggerHaptic(); quickMenu.toggle() }
-
         zoomPills[0].setOnClickListener { setZoom(0.5f, 0, zoomPills) }
         zoomPills[1].setOnClickListener { setZoom(1f, 1, zoomPills) }
         zoomPills[2].setOnClickListener { setZoom(3f, 2, zoomPills) }
-
         val modeNames = arrayOf("TIME-LAPSE", "SLO-MO", "VIDEO", "PHOTO", "PORTRAIT", "PANORAMA")
         modePills.forEachIndexed { i, tv ->
             tv.setOnClickListener {
@@ -117,13 +118,11 @@ class MainActivity : AppCompatActivity() {
                 triggerHaptic()
             }
         }
-
         previewView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
                 triggerHaptic(); showFocusRing(event.x, event.y); startTapToFocus(event.x, event.y)
             }; true
         }
-
         if (allPermissionsGranted()) startCamera()
         else ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
     }
@@ -136,7 +135,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // EXACT VERSION PROVIDED BY USER
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
@@ -146,26 +144,37 @@ class MainActivity : AppCompatActivity() {
                 val extensionsManager = extensionsFuture.get()
                 val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
                 val preview = Preview.Builder()
-                    .setTargetResolution(Size(1280, 720))
+                    .setTargetResolution(aspectResolutions[aspectIndex])
                     .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 val captureBuilder = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-                val extensionMode = if (isNightMode) ExtensionMode.NIGHT else ExtensionMode.HDR
-                val finalSelector = if (extensionsManager.isExtensionAvailable(baseSelector, extensionMode)) {
-                    extensionsManager.getExtensionEnabledCameraSelector(baseSelector, extensionMode)
-                } else {
-                    baseSelector
+                    .setTargetResolution(aspectResolutions[aspectIndex])
+                var finalSelector = baseSelector
+                if (isNightMode && extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.NIGHT)) {
+                    finalSelector = extensionsManager.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.NIGHT)
+                } else if (extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR)) {
+                    finalSelector = extensionsManager.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
                 }
                 imageCapture = captureBuilder.build()
                 imageCapture?.flashMode = flashModes[flashIndex]
                 try {
                     cameraProvider.unbindAll()
                     currentCamera = cameraProvider.bindToLifecycle(this, finalSelector, preview, imageCapture)
+                    if (exposureValue != 0f) applyExposure()
                 } catch (e: Exception) {
                     Toast.makeText(this, "Camera init failed: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }, ContextCompat.getMainExecutor(this))
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun applyExposure() {
+        val cam = currentCamera ?: return
+        val state = cam.cameraInfo.exposureState
+        if (!state.isExposureCompensationSupported) return
+        val range = state.exposureCompensationRange
+        val idx = (exposureValue * 10).roundToInt().coerceIn(range.lower, range.upper)
+        cam.cameraControl.setExposureCompensationIndex(idx)
     }
 
     private fun switchCameraWithAnimation() {
@@ -201,10 +210,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun takePhoto() {
+        if (timerIndex > 0) {
+            val delay = if (timerIndex == 1) 3000L else 10000L
+            Toast.makeText(this, "Timer: ${delay/1000}s", Toast.LENGTH_SHORT).show()
+            Handler(Looper.getMainLooper()).postDelayed({ triggerHaptic(); captureImage() }, delay)
+        } else {
+            captureImage()
+        }
+    }
+
+    private fun captureImage() {
         val capture = imageCapture ?: return
         val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "LUNA_${System.currentTimeMillis()}.jpg")
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "LUNA_${System.currentTimeMillis()}.${if (formatIndex == 0) "jpg" else "heic"}")
+            put(MediaStore.MediaColumns.MIME_TYPE, if (formatIndex == 0) "image/jpeg" else "image/heic")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, "DCIM/Camera")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
@@ -212,7 +231,6 @@ class MainActivity : AppCompatActivity() {
         }
         val resolver = applicationContext.contentResolver
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues) ?: return
-
         capture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 try {
@@ -228,7 +246,11 @@ class MainActivity : AppCompatActivity() {
                     val outputBitmap = applyProPipeline(sourceBitmap, rot)
                     sourceBitmap.recycle()
                     val bos = ByteArrayOutputStream()
-                    outputBitmap.compress(Bitmap.CompressFormat.JPEG, 95, bos)
+                    if (formatIndex == 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        outputBitmap.compress(Bitmap.CompressFormat.HEIF, 95, bos)
+                    } else {
+                        outputBitmap.compress(Bitmap.CompressFormat.JPEG, 95, bos)
+                    }
                     outputBitmap.recycle()
                     resolver.openOutputStream(uri)?.use { it.write(bos.toByteArray()) }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -252,7 +274,6 @@ class MainActivity : AppCompatActivity() {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
             Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { if (it != src) src.recycle() }
         } else src
-        
         val matrix = if (activeLook == Look.CINEMATIC) Look.CINEMATIC.matrix else activeLook.matrix
         val cm = ColorMatrix().apply { set(matrix) }
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(cm) }
@@ -299,6 +320,23 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) startCamera()
     }
+
+    // QuickMenu.Callbacks implementation
+    override fun onFlashCycle() {
+        flashIndex = (flashIndex + 1) % flashModes.size
+        imageCapture?.flashMode = flashModes[flashIndex]
+    }
+    override fun onLiveToggle(enabled: Boolean) { isLiveEnabled = enabled }
+    override fun onAspectCycle() { aspectIndex = (aspectIndex + 1) % 3; startCamera() }
+    override fun onTimerCycle() { timerIndex = (timerIndex + 1) % 3 }
+    override fun onExposureChange(value: Float) { exposureValue = value; applyExposure() }
+    override fun onStyleCycle() {
+        val styles = arrayOf(Look.NORMAL, Look.LUNA, Look.CINEMATIC)
+        activeLook = styles[styleIndex % 3]
+    }
+    override fun onDepthToggle(enabled: Boolean) { isDepthEnabled = enabled; startCamera() }
+    override fun onNightToggle(enabled: Boolean) { isNightMode = enabled; startCamera() }
+    override fun onFormatCycle() { formatIndex = (formatIndex + 1) % 2 }
 
     companion object {
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
