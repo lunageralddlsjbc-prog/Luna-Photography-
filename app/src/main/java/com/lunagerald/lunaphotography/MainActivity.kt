@@ -3,7 +3,16 @@ package com.lunagerald.lunaphotography
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
-import android.graphics.*
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.ImageFormat
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.YuvImage
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
@@ -14,9 +23,15 @@ import android.view.View
 import android.widget.ImageButton
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
 import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager
+import androidx.camera.extensions.ImageCaptureExtender
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -47,7 +62,6 @@ class MainActivity : AppCompatActivity() {
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
         switchBtn.setOnClickListener { switchCamera() }
 
-        // SECRET 4: Tap-to-Focus Listener
         previewView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
                 triggerHaptic()
@@ -74,20 +88,24 @@ class MainActivity : AppCompatActivity() {
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
-            val provider = cameraProviderFuture.get()
-            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+            // FIX 1: Explicitly type the provider to prevent ListenableFuture inference errors
+            val provider: androidx.camera.core.CameraProvider = cameraProviderFuture.get()
+            
+            val preview = Preview.Builder().build().also { 
+                it.setSurfaceProvider(previewView.surfaceProvider) 
+            }
             val selector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
             
-            var captureBuilder = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            val captureBuilder = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             
-            // SECRET 1: Multi-Frame HDR (Deep Fusion equivalent)
+            // FIX 2 & 3: Use the correct CameraX 1.3.x Extension API
+            val imageCaptureExtender = ImageCaptureExtender.create(captureBuilder, selector)
             val extMgr = extensionsManager
             if (extMgr != null && extMgr.isExtensionAvailable(selector, ExtensionMode.HDR)) {
-                captureBuilder = extMgr.getExtensionEnabledImageCapture(captureBuilder.build(), selector)
-            } else {
-                captureBuilder = captureBuilder.build()
+                imageCaptureExtender.enableExtension(ExtensionMode.HDR)
             }
-            imageCapture = captureBuilder
+            imageCapture = imageCaptureExtender.imageCapture
 
             try {
                 provider.unbindAll()
@@ -98,14 +116,14 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    // SECRET 4: Focus Metering Logic
     private fun startTapToFocus(x: Float, y: Float) {
-        val camera = previewView.camera ?: return
+        // FIX 4: Rename to 'cam' to avoid shadowing the imported Camera class
+        val cam = previewView.camera ?: return
         val point = previewView.meteringPointFactory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
             .setAutoCancelDuration(3, TimeUnit.SECONDS)
             .build()
-        camera.cameraControl.startFocusAndMetering(action)
+        cam.cameraControl.startFocusAndMetering(action)
     }
 
     private fun showFocusRing(x: Float, y: Float) {
@@ -136,7 +154,6 @@ class MainActivity : AppCompatActivity() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 try {
                     val rot = image.imageInfo.rotationDegrees
-                    // Decode to Bitmap (Bypasses HAL crash)
                     val sourceBitmap = if (image.format == ImageFormat.JPEG) {
                         val buf = image.planes[0].buffer
                         val bytes = ByteArray(buf.remaining()).also { buf.get(it) }
@@ -146,11 +163,11 @@ class MainActivity : AppCompatActivity() {
                     }
                     image.close()
 
-                    // SECRET 3: Signature Color Science ("The Luna Look")
+                    // Apply the "Luna Look" Color Matrix
                     val outputBitmap = applyLunaColorMatrix(sourceBitmap, rot)
                     sourceBitmap.recycle()
 
-                    // SECRET 2: Advanced Tone Mapping (High-quality JPEG compression)
+                    // Compress to high-quality JPEG
                     val bos = ByteArrayOutputStream()
                     outputBitmap.compress(Bitmap.CompressFormat.JPEG, 95, bos)
                     outputBitmap.recycle()
@@ -172,7 +189,6 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // SECRET 3: The "Luna Look" Color Matrix (Warmth + Contrast Boost)
     private fun applyLunaColorMatrix(src: Bitmap, rotation: Int): Bitmap {
         val rotated = if (rotation != 0) {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
