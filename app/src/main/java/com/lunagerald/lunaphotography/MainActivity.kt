@@ -56,6 +56,8 @@ import kotlin.math.roundToInt
 class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     private lateinit var cameraExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
+    private var isIPhone = false
+    private var isAI = false
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private lateinit var previewView: PreviewView
     private lateinit var focusRing: View
