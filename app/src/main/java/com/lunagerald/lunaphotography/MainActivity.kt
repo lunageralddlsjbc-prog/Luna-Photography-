@@ -91,7 +91,7 @@ class MainActivity : AppCompatActivity() {
                 imageCapture?.flashMode = flashModes[flashIndex]
                 flashPill.text = flashLabels[flashIndex]
             },
-            onStyleChange = { look -> activeLook = look; startCamera() }, // Restart camera to apply live bokeh
+            onStyleChange = { look -> activeLook = look; startCamera() },
             onNightToggle = { nightOn -> isNightMode = nightOn; startCamera() }
         )
 
@@ -147,12 +147,9 @@ class MainActivity : AppCompatActivity() {
             val previewBuilder = Preview.Builder().setTargetResolution(Size(1280, 720))
             val previewExtender = PreviewExtender.create(previewBuilder, selector)
             
-            // If Cinematic mode is active, try to enable Bokeh/Portrait for live depth effect
             if (activeLook == Look.CINEMATIC) {
                 if (previewExtender.isExtensionAvailable(ExtensionMode.BOKEH)) {
                     previewExtender.enableExtension(ExtensionMode.BOKEH)
-                } else if (previewExtender.isExtensionAvailable(ExtensionMode.PORTRAIT)) {
-                    previewExtender.enableExtension(ExtensionMode.PORTRAIT)
                 }
             }
             val preview = previewBuilder.build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
@@ -264,7 +261,6 @@ class MainActivity : AppCompatActivity() {
             Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { if (it != src) src.recycle() }
         } else src
         
-        // Apply Cinematic Matrix if active, otherwise use selected look
         val matrix = if (activeLook == Look.CINEMATIC) Look.CINEMATIC.matrix else activeLook.matrix
         val cm = ColorMatrix().apply { set(matrix) }
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(cm) }
