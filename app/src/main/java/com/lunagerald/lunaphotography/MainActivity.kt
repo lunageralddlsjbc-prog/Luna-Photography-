@@ -1,6 +1,9 @@
 package com.lunagerald.lunaphotography
 
 import android.Manifest
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ObjectAnimator
 import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -21,6 +24,9 @@ import android.provider.MediaStore
 import android.util.Size
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
@@ -87,7 +93,6 @@ class MainActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.mPano)
         )
 
-        // Initialize the new iPhone-style quick menu
         quickMenu = QuickMenu(
             this,
             onFlashCycle = {
@@ -106,7 +111,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
-        switchBtn.setOnClickListener { switchCamera() }
+        
+        // FIXED: Use smooth 3D flip animation instead of instant switch
+        switchBtn.setOnClickListener { switchCameraWithAnimation() }
 
         flashPill.setOnClickListener {
             flashIndex = (flashIndex + 1) % flashModes.size
@@ -115,7 +122,6 @@ class MainActivity : AppCompatActivity() {
             triggerHaptic()
         }
 
-        // Gear button opens the new quick menu
         gearPill.setOnClickListener { triggerHaptic(); quickMenu.toggle() }
 
         zoomPills[0].setOnClickListener { setZoom(0.5f, 0, zoomPills) }
@@ -184,6 +190,42 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    // NEW: Smooth 3D flip animation that hides the unbind/rebind process
+    private fun switchCameraWithAnimation() {
+        triggerHaptic()
+        
+        // Spin the button
+        val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
+        ObjectAnimator.ofFloat(switchBtn, "rotation", 0f, 180f).apply {
+            duration = 300
+            interpolator = AccelerateDecelerateInterpolator()
+        }.start()
+
+        // Flip the preview out of view
+        val flipOut = ObjectAnimator.ofFloat(previewView, "rotationY", 0f, 90f).apply {
+            duration = 150
+            interpolator = AccelerateInterpolator()
+        }
+        
+        // Flip the new preview back into view
+        val flipIn = ObjectAnimator.ofFloat(previewView, "rotationY", -90f, 0f).apply {
+            duration = 150
+            interpolator = DecelerateInterpolator()
+        }
+        
+        flipOut.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                // Swap camera at the exact 90-degree mark when the view is edge-on (invisible)
+                // This perfectly masks any black screen from unbinding/rebinding
+                lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) 
+                    CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
+                startCamera()
+                flipIn.start()
+            }
+        })
+        flipOut.start()
+    }
+
     private fun applyLookToCamera(look: Look, nightMode: Boolean) {
         val cam = currentCamera ?: return
         val state = cam.cameraInfo.exposureState
@@ -214,7 +256,6 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    // ===== 100% UNTOUCHED WORKING CAPTURE & SAVE LOGIC =====
     private fun takePhoto() {
         val capture = imageCapture ?: return
         val contentValues = ContentValues().apply {
@@ -266,7 +307,6 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // ===== Matrix driven by the selected look + Night mode =====
     private fun applyProPipeline(src: Bitmap, rotation: Int): Bitmap {
         val rotated = if (rotation != 0) {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
@@ -282,7 +322,6 @@ class MainActivity : AppCompatActivity() {
         return result
     }
 
-    // ===== 100% UNTOUCHED WORKING YUV CONVERSION =====
     private fun yuvToBitmap(image: ImageProxy): Bitmap {
         val w = image.width; val h = image.height
         val ySize = w * h
@@ -306,11 +345,6 @@ class MainActivity : AppCompatActivity() {
         val bos = ByteArrayOutputStream()
         yuv.compressToJpeg(Rect(0, 0, w, h), 95, bos)
         return BitmapFactory.decodeByteArray(bos.toByteArray(), 0, bos.size())
-    }
-
-    private fun switchCamera() {
-        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
-        startCamera()
     }
 
     private fun triggerHaptic() {

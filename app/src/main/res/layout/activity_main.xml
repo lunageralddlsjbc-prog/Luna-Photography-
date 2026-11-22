@@ -24,6 +24,17 @@
             <TextView android:id="@+id/zoomThree" android:text="3x" android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold" android:background="@drawable/pill_inactive" android:paddingHorizontal="16dp" android:paddingVertical="10dp" android:clickable="true" android:focusable="true" android:layout_width="wrap_content" android:layout_height="wrap_content" />
         </LinearLayout>
         <ImageButton android:id="@+id/shutterBtn" android:layout_width="72dp" android:layout_height="72dp" android:background="@drawable/shutter_bg" android:contentDescription="Shutter" />
-        <ImageButton android:id="@+id/switchBtn" android:layout_width="0dp" android:layout_weight="1" android:layout_height="44dp" android:background="#4DFFFFFF" android:src="@android:drawable/ic_menu_rotate" android:contentDescription="Switch Camera" app:tint="#FFFFFF" />
+        <!-- FIXED: Transparent, 48x48dp, circular arrows icon, aligned to the right -->
+        <ImageButton 
+            android:id="@+id/switchBtn" 
+            android:layout_width="0dp" 
+            android:layout_weight="1" 
+            android:layout_height="48dp" 
+            android:background="@android:color/transparent" 
+            android:src="@drawable/ic_flip_camera" 
+            android:contentDescription="Switch Camera" 
+            app:tint="#FFFFFF" 
+            android:scaleType="center"
+            android:layout_gravity="end|center_vertical" />
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
