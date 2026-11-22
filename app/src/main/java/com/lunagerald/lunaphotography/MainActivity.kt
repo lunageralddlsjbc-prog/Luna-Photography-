@@ -136,13 +136,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // FIXED: Properly nested ListenableFuture listeners as instructed
+    // FIXED: Properly nested listeners, passing resolved cameraProvider to ExtensionsManager
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
-            val extensionsFuture = ExtensionsManager.getInstanceAsync(this, cameraProviderFuture)
+            
+            // ExtensionsManager expects the resolved CameraProvider, NOT the future
+            val extensionsFuture = ExtensionsManager.getInstanceAsync(this, cameraProvider)
             
             extensionsFuture.addListener({
                 val extensionsManager = extensionsFuture.get()
