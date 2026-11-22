@@ -139,6 +139,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
 
     private var zoomAnimator: android.animation.ValueAnimator? = null
     private var currentZoom = 1f
+    private var currentZoom = 1f
     private fun setZoom(ratio: Float, activeIndex: Int, zoomPills: List<TextView>) {
         val cam = currentCamera ?: return
         val start = currentZoom
