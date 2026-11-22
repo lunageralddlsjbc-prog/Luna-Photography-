@@ -144,8 +144,12 @@ class QuickMenu(
             setOnClickListener { action() }
             tag = label
         }
-        val iconView = View(activity).apply {
-            background = activity.getDrawable(iconRes)
+        val iconView = ImageView(activity).apply {
+            setImageResource(iconRes)
+ setColorFilter(0xFFFFFFFF.toInt())
+ scaleType = ImageView.ScaleType.CENTER_INSIDE
+ setPadding(dp(12), dp(12), dp(12), dp(12))
+ background = GradientDrawable().apply { setColor(0xFF2C2C2E.toInt()); shape = GradientDrawable.OVAL }
             layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { gravity = Gravity.CENTER_HORIZONTAL }
             tag = "icon_$label"
         }
