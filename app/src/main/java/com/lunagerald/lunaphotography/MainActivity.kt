@@ -83,8 +83,6 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         Size(1280, 720), // 16:9 preview
         Size(720, 720) // 1:1 preview
     )
-    private val previewResolutions = arrayOf(
-        Size(960, 720), Size(1280, 720), Size(720, 720))
     private val aspectResolutions = arrayOf(
         Size(1280, 960),  // 4:3
         Size(1280, 720),  // 16:9
