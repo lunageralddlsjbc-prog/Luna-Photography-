@@ -75,6 +75,11 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     private var aspectIndex = 0
     private var timerIndex = 0
     private var exposureValue = 0f
+                private fun applyProPipeline(src: android.graphics.Bitmap): android.graphics.Bitmap { val base = applyIPhoneFilter(src); val w = base.width; val h = base.height; val px = IntArray(w*h); base.getPixels(px,0,w,0,0,w,h); for (i in px.indices) { val c = px[i]; var r = android.graphics.Color.red(c); var g = android.graphics.Color.green(c); var b = android.graphics.Color.blue(c); val lum = (0.299f*r+0.587f*g+0.114f*b).toInt(); var nr=r; var ng=g; var nb=b; if (lum < 90) { val t = (1f-lum/90f)*0.35f; nr=(r*(1f-t)+((r+g+b)/3)*t).toInt(); ng=(g*(1f-t)+((r+g+b)/3)*t).toInt(); nb=(b*(1f-t)+((r+g+b)/3)*t).toInt() }; val x = nr/255f; var sc = x + 0.18f*x*(1f-x)*(x-0.5f)*2f + (1f-x)*(1f-x)*0.032f - x*x*x*0.045f; sc=sc.coerceIn(0f,1f); val warm=x*x*5f; val teal=(1f-x)*(1f-x)*4f; r=(sc*255f+warm-teal*0.6f).coerceIn(0f,255f).toInt(); g=(sc*255f+teal*0.7f).coerceIn(0f,255f).toInt(); b=(sc*255f-warm*0.7f+teal*0.5f).coerceIn(0f,255f).toInt(); px[i]=android.graphics.Color.rgb(r,g,b) }; val o=android.graphics.Bitmap.createBitmap(w,h,android.graphics.Bitmap.Config.ARGB_8888); o.setPixels(px,0,w,0,0,w,h); return o }
+    private fun autoLowLightExposure() { val cam = currentCamera ?: return; val st = cam.cameraInfo.exposureState; if (!st.isExposureCompensationSupported) return; if (exposureValue != 0f) return; val r = st.exposureCompensationRange; val idx = (0.7f * 10).toInt().coerceIn(r.lower, r.upper); if (idx > st.exposureCompensationIndex) cam.cameraControl.setExposureCompensationIndex(idx) }
+    private fun applyIPhoneFilter(src: android.graphics.Bitmap): android.graphics.Bitmap { val o = android.graphics.Bitmap.createBitmap(src.width, src.height, android.graphics.Bitmap.Config.ARGB_8888); val c = android.graphics.Canvas(o); val pa = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG); pa.colorFilter = android.graphics.ColorMatrixColorFilter(CINEMATIC_MATRIX); c.drawBitmap(src, 0f, 0f, pa); return o }
+    private val CINEMATIC_MATRIX = android.graphics.ColorMatrix(floatArrayOf(0.94f,0.05f,0.01f,0f,7f, 0.03f,1.05f,0.02f,0f,2f, 0.01f,0.06f,0.90f,0f,-6f, 0f,0f,0f,1f,0f))
+
     private var formatIndex = 0
     private var styleIndex = 0
 
@@ -267,7 +272,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         }
         val resolver = applicationContext.contentResolver
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues) ?: return
-        capture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
+        autoLowLightExposure(); capture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 try {
                     val rot = image.imageInfo.rotationDegrees
@@ -310,7 +315,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
             Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).also { if (it != src) src.recycle() }
         } else src
-        val matrix = if (activeLook == Look.CINEMATIC) Look.CINEMATIC.matrix else activeLook.matrix
+        if (activeLook == Look.CINEMATIC) { val r = applyProPipeline(rotated); if (r != rotated) rotated.recycle(); return r }
+    val matrix = if (activeLook == Look.CINEMATIC) Look.CINEMATIC.matrix else activeLook.matrix
         val cm = ColorMatrix().apply { set(matrix) }
         val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(cm) }
         val result = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
