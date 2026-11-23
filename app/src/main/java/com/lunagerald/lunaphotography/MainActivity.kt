@@ -238,8 +238,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
 
     private fun showFocusRing(x: Float, y: Float) {
         focusRing.visibility = View.VISIBLE
-        val _pv=IntArray(2); previewView.getLocationInWindow(_pv); val _pa=IntArray(2); (focusRing.parent as android.view.View).getLocationInWindow(_pa); focusRing.translationX = (_pv[0]-_pa[0]) + x - (focusRing.parent as android.view.View).width / 2f
-        focusRing.translationY = (_pv[1]-_pa[1]) + y - (focusRing.parent as android.view.View).height / 2f
+        val _pv=IntArray(2); previewView.getLocationInWindow(_pv); val _pa=IntArray(2); (focusRing.parent as android.view.View).getLocationInWindow(_pa); focusRing.translationX = x - previewView.width / 2f
+        focusRing.translationY = y - previewView.height / 2f
         focusRing.animate().scaleX(1.2f).scaleY(1.2f).alpha(1f).setDuration(200).withEndAction {
             focusRing.animate().scaleX(1f).scaleY(1f).alpha(0f).setDuration(400).withEndAction { focusRing.visibility = View.GONE }.start()
         }.start()
