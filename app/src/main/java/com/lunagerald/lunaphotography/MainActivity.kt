@@ -149,10 +149,10 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         val zs2 = cam.cameraInfo.zoomState.value
         val lo = zs2?.minZoomRatio ?: 1f
         val hi = zs2?.maxZoomRatio ?: 3f
-        val ratio = ratio.coerceIn(lo, hi)
+        val clamped = ratio.coerceIn(lo, hi)
     val zs = cam.cameraInfo.zoomState.value
-    cam.cameraControl.setZoomRatio(ratio)
-    currentZoom = ratio
+    cam.cameraControl.setZoomRatio(clamped)
+    currentZoom = clamped
         zoomPills.forEachIndexed { i, tv ->
             if (i == activeIndex) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) }
             else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) }
@@ -204,7 +204,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         val zs2 = cam.cameraInfo.zoomState.value
         val lo = zs2?.minZoomRatio ?: 1f
         val hi = zs2?.maxZoomRatio ?: 3f
-        val ratio = ratio.coerceIn(lo, hi)
+        val clamped = ratio.coerceIn(lo, hi)
         val state = cam.cameraInfo.exposureState
         if (!state.isExposureCompensationSupported) return
         val range = state.exposureCompensationRange
@@ -233,7 +233,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         val zs2 = cam.cameraInfo.zoomState.value
         val lo = zs2?.minZoomRatio ?: 1f
         val hi = zs2?.maxZoomRatio ?: 3f
-        val ratio = ratio.coerceIn(lo, hi)
+        val clamped = ratio.coerceIn(lo, hi)
         val point = previewView.meteringPointFactory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
         cam.cameraControl.startFocusAndMetering(action)
