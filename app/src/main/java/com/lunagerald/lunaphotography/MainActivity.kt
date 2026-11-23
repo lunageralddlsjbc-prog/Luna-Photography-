@@ -201,10 +201,6 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
 
     private fun applyExposure() {
         val cam = currentCamera ?: return
-        val zs2 = cam.cameraInfo.zoomState.value
-        val lo = zs2?.minZoomRatio ?: 1f
-        val hi = zs2?.maxZoomRatio ?: 3f
-        val clamped = ratio.coerceIn(lo, hi)
         val state = cam.cameraInfo.exposureState
         if (!state.isExposureCompensationSupported) return
         val range = state.exposureCompensationRange
@@ -230,10 +226,6 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
 
     private fun startTapToFocus(x: Float, y: Float) {
         val cam = currentCamera ?: return
-        val zs2 = cam.cameraInfo.zoomState.value
-        val lo = zs2?.minZoomRatio ?: 1f
-        val hi = zs2?.maxZoomRatio ?: 3f
-        val clamped = ratio.coerceIn(lo, hi)
         val point = previewView.meteringPointFactory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
         cam.cameraControl.startFocusAndMetering(action)
