@@ -43,7 +43,7 @@ class IPhoneControls(val ctx: Context, val root: FrameLayout) {
     manualBtn = tv("Ⓜ MANUAL").apply { setOnClickListener { setManual(!isManual) } }
     topBar.addView(flash); topBar.addView(manualBtn.apply { layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { gravity = Gravity.CENTER } }); topBar.addView(flip)
     col.addView(topBar)
-    col.addView(View(ctx).apply { layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }) // preview space
+    // NO SPACER - overlay ra, dili magduso sa preview
     // MANUAL ROW: 3 small buttons ONLY when MANUAL - hidden in clean mode
     manualRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; visibility = View.GONE; setPadding(0,0,0,12) }
     isoBtn = chip("ISO 100") { open("ISO") }; sBtn = chip("S  1/250") { open("S") }; wbBtn = chip("WB  5500K") { open("WB") }

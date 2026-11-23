@@ -127,8 +127,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         previewView = findViewById(R.id.previewView)
         previewView.scaleType = androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
         previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
-        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
-        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
+        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
+        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
         focusRing = findViewById(R.id.focusRing)
         val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
         val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
