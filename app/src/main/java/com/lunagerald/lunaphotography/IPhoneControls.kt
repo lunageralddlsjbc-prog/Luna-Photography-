@@ -62,9 +62,9 @@ class IPhoneControls(val ctx: Context, val root: FrameLayout) {
     col.addView(row)
     // VIDEO / PHOTO - ONLY this in clean bottom
     val modes = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0,4,0,24) }
-    val v = tv("VIDEO").apply { setOnClickListener { setVideo(true, v, p) } }
-    val p = tv("PHOTO").apply { setTextColor(YELLOW) }
-    modes.addView(v); modes.addView(p.apply { layoutParams = LinearLayout.LayoutParams(-2,-2).apply { leftMargin = 48 } })
+    val vBtn = tv("VIDEO").apply { setOnClickListener { setVideo(true) } }
+    val pBtn = tv("PHOTO").apply { setTextColor(YELLOW); setOnClickListener { setVideo(false) } }
+    modes.addView(vBtn); modes.addView(pBtn.apply { layoutParams = LinearLayout.LayoutParams(-2,-2).apply { leftMargin = 48 } })
     col.addView(modes)
     // BOTTOM SHEET - 1 slider only
     sheet = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; setBackgroundColor(Color.parseColor("#1C1C1E")); setPadding(24, 16, 24, 32) }
@@ -85,7 +85,7 @@ class IPhoneControls(val ctx: Context, val root: FrameLayout) {
   private fun chip(t: String, onClick: () -> Unit) = TextView(ctx).apply { text = t; textSize = 13f; setTextColor(Color.WHITE); setPadding(28,16,28,16); background = bg(Color.parseColor("#333333"), 999f); layoutParams = LinearLayout.LayoutParams(-2,-2).apply { leftMargin=12; rightMargin=12 }; setOnClickListener { onClick() } }
   private fun tv(t: String) = TextView(ctx).apply { text = t; textSize = 16f; setTextColor(Color.WHITE); setPadding(16,16,16,16) }
   private fun bg(c: Int, r: Float, stroke: Int = 0, sc: Int = 0): android.graphics.drawable.GradientDrawable { val d = android.graphics.drawable.GradientDrawable(); d.setColor(c); d.cornerRadius = r; if (stroke>0) d.setStroke(stroke, sc); return d }
-  private fun setVideo(video: Boolean, v: TextView, p: TextView) { v.setTextColor(if (video) YELLOW else Color.WHITE); p.setTextColor(if (video) Color.WHITE else YELLOW); onMode?.invoke(video) }
+  private fun setVideo(video: Boolean) { onMode?.invoke(video) }
   fun setManual(m: Boolean) {
     isManual = m
     if (m) { isAuto = false } // M ON = AUTO OFF - bug fix
