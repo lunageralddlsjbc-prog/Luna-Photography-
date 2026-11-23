@@ -38,7 +38,10 @@ import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
+import androidx.camera.camera2.interop.Camera2Interop
+import android.hardware.camera2.CaptureRequest
+import androidx.camera.core.ImageCapture
+import android.hardware.camera2.CaptureRequestException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.extensions.ExtensionMode
@@ -184,8 +187,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                     .setTargetResolution(aspectResolutions[aspectIndex])
                     .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 
-                val captureBuilder = ImageCapture.Builder()
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                val captureBuilder = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setJpegQuality(100)
+                    
                     .setTargetResolution(aspectResolutions[aspectIndex])
                 
                 var finalSelector = baseSelector
@@ -195,7 +198,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     // HDR selector disabled
                 }
                 
-                imageCapture = captureBuilder.build()
+                Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(CaptureRequest.TONEMAP_MODE, CaptureRequest.TONEMAP_MODE_HIGH_QUALITY).setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON).setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_HIGH_QUALITY).setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY).setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+        imageCapture = captureBuilder.build()
                 imageCapture?.flashMode = flashModes[flashIndex]
                 
                 try {
