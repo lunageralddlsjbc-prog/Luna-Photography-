@@ -111,35 +111,13 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
             val root = findViewById<android.view.ViewGroup>(android.R.id.content)
             val controls = IPhoneControls(this, root as android.widget.FrameLayout)
         controls.build()
-        // HIDE old XML UI - para dili mag-double / mag-overlap
-        try {
-          findViewById<android.view.View>(R.id.shutterBtn)?.visibility = android.view.View.GONE
-          findViewById<android.view.View>(R.id.switchBtn)?.visibility = android.view.View.GONE
-          findViewById<android.view.View>(R.id.flashPill)?.visibility = android.view.View.GONE
-          findViewById<android.view.View>(R.id.gearPill)?.visibility = android.view.View.GONE
-          listOf(R.id.zoomHalf, R.id.zoomOne, R.id.zoomThree, R.id.mTime, R.id.mSlo, R.id.mVideo, R.id.mPhoto, R.id.mPortrait, R.id.mPano).forEach { id -> findViewById<android.view.View>(id)?.visibility = android.view.View.GONE }
-        } catch (e: Exception) {}
         controls.onCapture = { try { captureImage() } catch (e: Exception) { try { takePhoto() } catch (e2: Exception) {} } }
-        controls.onManualChange = { ns, iso, wb, manual -> try { manualShutterNs = ns; manualIso = iso.coerceAtLeast(100); manualModeEnabled = manual; exposureValue = 0f; applyExposure() } catch (e: Exception) {} }
-        controls.onMode = { video -> try { exposureValue = if (video) 0f else 0f; applyExposure() } catch (e: Exception) {} }
-        } catch (e: Exception) {}
-        cameraExecutor = Executors.newSingleThreadExecutor()
-        previewView = findViewById(R.id.previewView)
-        previewView.scaleType = androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
-        previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
-        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
-        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
-        focusRing = findViewById(R.id.focusRing)
-        val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
-        val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
-        val flashPill = findViewById<TextView>(R.id.flashPill)
-        val gearPill = findViewById<ImageView>(R.id.gearPill)
-        val zoomPills = listOf(findViewById<TextView>(R.id.zoomHalf), findViewById<TextView>(R.id.zoomOne), findViewById<TextView>(R.id.zoomThree))
-        val modePills = listOf(findViewById<TextView>(R.id.mTime), findViewById<TextView>(R.id.mSlo), findViewById<TextView>(R.id.mVideo), findViewById<TextView>(R.id.mPhoto), findViewById<TextView>(R.id.mPortrait), findViewById<TextView>(R.id.mPano))
-
-        quickMenu = QuickMenu(this, this)
-
-        shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
+        controls.onVideoToggle = { rec -> /* MainActivity handles start/stop video */ }
+        controls.onManualChange = { ns, iso, wb, manual -> try { manualShutterNs = ns; manualIso = iso.coerceAtLeast(100); manualModeEnabled = manual; applyExposure() } catch (e: Exception) {} }
+        controls.onMode = { video -> try { applyExposure() } catch (e: Exception) {} }
+        controls.onZoom = { z -> try { currentZoom = z; currentCamera?.cameraControl?.setZoomRatio(z) } catch (e: Exception) {} }
+        controls.onFlip = { try { lensFacing = if (lensFacing == androidx.camera.core.CameraSelector.LENS_FACING_BACK) androidx.camera.core.CameraSelector.LENS_FACING_FRONT else androidx.camera.core.CameraSelector.LENS_FACING_BACK; startCamera() } catch (e: Exception) {} }
+        try { listOf(R.id.shutterBtn, R.id.switchBtn, R.id.flashPill, R.id.gearPill, R.id.zoomHalf, R.id.zoomOne, R.id.zoomThree, R.id.mTime, R.id.mSlo, R.id.mVideo, R.id.mPhoto, R.id.mPortrait, R.id.mPano).forEach { id -> findViewById<android.view.View>(id)?.visibility = android.view.View.GONE } } catch (e: Exception) {}
         switchBtn.setOnClickListener { switchCameraWithAnimation() }
         flashPill.setOnClickListener {
             flashIndex = (flashIndex + 1) % flashModes.size
