@@ -147,7 +147,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
             override fun onScale(d: android.view.ScaleGestureDetector): Boolean { val zs = currentCamera?.cameraInfo?.zoomState?.value; val hi = zs?.maxZoomRatio ?: 3f; val lo = zs?.minZoomRatio ?: 1f; val z = (pinchStartZoom * d.scaleFactor).coerceIn(lo, hi); currentZoom = z; currentCamera?.cameraControl?.setZoomRatio(z); val idx = if (z < 1.5f) 0 else if (z < 2.5f) 1 else 2; zoomPills.forEachIndexed { i, tv -> if (i == idx) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) } else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) } }; return true }
             override fun onScaleEnd(d: android.view.ScaleGestureDetector) { isPinching = false }
         })
-        previewView.setOnTouchListener { _, event -> det.onTouchEvent(event); if (!isPinching && event.action == android.view.MotionEvent.ACTION_DOWN) { triggerHaptic(); showFocusRing(event.x, event.y); startTapToFocus(event.x, event.y) }; true }
+        previewView.setOnTouchListener { _, event -> det.onTouchEvent(event); if (!isPinching && event.actionMasked == android.view.MotionEvent.ACTION_UP) { triggerHaptic(); showFocusRing(event.x, event.y); startTapToFocus(event.x, event.y) }; true }
     }
     private fun setZoom(ratio: Float, activeIndex: Int, zoomPills: List<TextView>) {
         val cam = currentCamera ?: return
@@ -238,8 +238,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
 
     private fun showFocusRing(x: Float, y: Float) {
         focusRing.visibility = View.VISIBLE
-        focusRing.translationX = x - (focusRing.width / 2f)
-        focusRing.translationY = y - (focusRing.height / 2f)
+        focusRing.translationX = x - (focusRing.parent as android.view.View).width / 2f
+        focusRing.translationY = y - (focusRing.parent as android.view.View).height / 2f
         focusRing.animate().scaleX(1.2f).scaleY(1.2f).alpha(1f).setDuration(200).withEndAction {
             focusRing.animate().scaleX(1f).scaleY(1f).alpha(0f).setDuration(400).withEndAction { focusRing.visibility = View.GONE }.start()
         }.start()
