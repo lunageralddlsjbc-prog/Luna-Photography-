@@ -40,8 +40,6 @@ import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.camera2.interop.Camera2Interop
 import android.hardware.camera2.CaptureRequest
-import androidx.camera.core.ImageCapture
-import android.hardware.camera2.CaptureRequestException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.extensions.ExtensionMode
