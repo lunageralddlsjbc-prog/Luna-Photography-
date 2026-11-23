@@ -75,7 +75,7 @@ object IPhoneControls {
         // ========== 1. TOP BAR ==========
         val top = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(Color.BLACK); setPadding(24, 36, 24, 20) }
         val menu = tv(a, "☰", 24f).apply { setOnClickListener { /* menu */ } }
-        val flash = tv(a, "⚡", 22f).apply { setOnClickListener { flashOn = !flashOn; text = if (flashOn) "⚡" else "⚡"; alpha = if (flashOn) 1f else 0.45f; onFlash?.invoke(flashOn) } }
+        val flash = tv(a, "⚡", 22f).apply { setOnClickListener { flashOn = !flashOn; if (flashOn) { alpha = 1f } else { alpha = 0.45f }; onFlash?.invoke(flashOn) } }
         // Yellow pill MANUAL with M circle
         val pill = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; background = bg(YELLOW, 999f); setPadding(18, 8, 28, 8) }
         val mCircle = tv(a, "M", 13f, Color.BLACK, true).apply { background = bg(Color.TRANSPARENT, 999f, 3, Color.BLACK); setPadding(10, 2, 10, 2) }
@@ -164,7 +164,7 @@ object IPhoneControls {
     private fun refreshModes() { for (i in 0 until modeRow.childCount) { val v = modeRow.getChildAt(i) as TextView; val on = v.text.toString() == currentMode; v.setTextColor(if (on) YELLOW else Color.WHITE); v.typeface = if (on) Typeface.DEFAULT_BOLD else Typeface.DEFAULT } }
     private fun refreshRuler() { rulerViews.forEachIndexed { i, v -> val active = RULER[i].first == shutterLabel || RULER[i].first == "ISO $isoVal"; v.setTextColor(if (active) YELLOW else Color.WHITE); v.typeface = if (active) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; tickViews[i].setBackgroundColor(if (active) YELLOW else Color.WHITE) } }
     private fun refreshLive() { liveLabel.text = "$shutterLabel\nISO $isoVal" }
-    private fun refreshMS() { msBtn.text = if (isManual) "M" else "S"; msBtn.setBackgroundColor(YELLOW) }
+    private fun refreshMS() { msBtn.text = (if (isManual) "M" else "S"; msBtn.setBackgroundColor(YELLOW) }
 
     fun selectRuler(idx: Int) {
         val (label, ns) = RULER[idx]
