@@ -172,8 +172,21 @@ object IPhoneControls {
         if (ns < 0) { isoVal = (-ns).toInt() } else { shutterLabel = label; shutterNs = ns }
         refreshAll(); emit()
     }
-    fun setAuto(auto: Boolean) { isAuto = auto; if (auto) { shutterLabel = "AUTO"; isoVal = 0 } refreshAll(); emit() }
-    fun setMode(manual: Boolean) { isManual = manual; refreshMS(); refreshAll(); emit() }
+    fun setAuto(auto: Boolean) {
+        isAuto = auto
+        if (auto) {
+            shutterLabel = "AUTO"
+            isoVal = 0
+        }
+        refreshAll()
+        emit()
+    }
+    fun setMode(manual: Boolean) {
+        isManual = manual
+        refreshMS()
+        refreshAll()
+        emit()
+    }
     fun setZoom(z: Float, fromButton: Boolean) {
         zoomVal = z.coerceIn(0.5f, 5f)
         zoomLabel.text = if (zoomVal == 1f) "1×" else String.format("%.1f×", zoomVal)
