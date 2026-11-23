@@ -164,7 +164,7 @@ object IPhoneControls {
     private fun refreshModes() { for (i in 0 until modeRow.childCount) { val v = modeRow.getChildAt(i) as TextView; val on = v.text.toString() == currentMode; v.setTextColor(if (on) YELLOW else Color.WHITE); v.typeface = if (on) Typeface.DEFAULT_BOLD else Typeface.DEFAULT } }
     private fun refreshRuler() { rulerViews.forEachIndexed { i, v -> val active = RULER[i].first == shutterLabel || RULER[i].first == "ISO $isoVal"; v.setTextColor(if (active) YELLOW else Color.WHITE); v.typeface = if (active) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; tickViews[i].setBackgroundColor(if (active) YELLOW else Color.WHITE) } }
     private fun refreshLive() { liveLabel.text = "$shutterLabel\nISO $isoVal" }
-    private fun refreshMS() { msBtn.text = (if (isManual) "M" else "S"; msBtn.setBackgroundColor(YELLOW) }
+    private fun refreshMS() { msBtn.text = if (isManual) "M" else "S"; msBtn.setBackgroundColor(YELLOW) }
 
     fun selectRuler(idx: Int) {
         val (label, ns) = RULER[idx]
