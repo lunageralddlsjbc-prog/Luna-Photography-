@@ -112,7 +112,7 @@ object IPhoneControls {
         liveLabel = tv(a, "1/15s\nISO 250", 13f, YELLOW, true).apply { gravity = Gravity.START; setLineSpacing(0f, 1.05f) }
         // ========== 2. BOTTOM HORIZONTAL RULER ==========
         val rulerRow = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val autoBtn = tv(a, "AUTO", 10f, Color.WHITE, true).apply { background = bg(Color.parseColor("#3A3A3A"), 999f); setPadding(18, 20, 18, 20); setOnClickListener { setAuto(true) } }
+        val autoBtn = tv(a, "AUTO", 10f, Color.WHITE, true).apply { background = bg(Color.parseColor("#3A3A3A"), 999f); setPadding(18, 20, 18, 20); setOnClickListener { applyAutoMode(true) } }
         val scroll = HorizontalScrollView(a).apply { layoutParams = LinearLayout.LayoutParams(0, 96, 1f); isHorizontalScrollBarEnabled = false }
         val ruler = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM or Gravity.CENTER_VERTICAL }
         RULER.forEachIndexed { idx, (label, ns) ->
@@ -128,7 +128,7 @@ object IPhoneControls {
 
         // ========== 4. CONTROL ROW ABOVE SHUTTER ==========
         val ctrl = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 18, 0, 6) }
-        val autoBox = tv(a, "AUTO", 10f, Color.WHITE, true).apply { background = bg(Color.TRANSPARENT, 12f, 2, Color.WHITE); setPadding(20, 12, 20, 12); setOnClickListener { setAuto(true) } }
+        val autoBox = tv(a, "AUTO", 10f, Color.WHITE, true).apply { background = bg(Color.TRANSPARENT, 12f, 2, Color.WHITE); setPadding(20, 12, 20, 12); setOnClickListener { applyAutoMode(true) } }
         msBtn = tv(a, "M", 14f, Color.BLACK, true).apply { background = bg(YELLOW, 12f); setPadding(28, 16, 28, 16); setOnClickListener { setMode(!isManual) } }
         val wb = tv(a, "WB\nAUTO", 11f, Color.WHITE, true).apply { gravity = Gravity.CENTER; setOnClickListener { wbAuto = !wbAuto; onWB?.invoke(wbAuto) } }
         val oneX = tv(a, "1×", 12f, Color.WHITE, true).apply { background = bg(Color.TRANSPARENT, 999f, 2, Color.WHITE); setPadding(22, 12, 22, 12); setOnClickListener { setZoom(1f, true) } }
@@ -172,7 +172,7 @@ object IPhoneControls {
         if (ns < 0) { isoVal = (-ns).toInt() } else { shutterLabel = label; shutterNs = ns }
         refreshAll(); emit()
     }
-    fun setAuto(auto: Boolean) {
+    fun applyAutoMode(auto: Boolean) {
         isAuto = auto
         if (auto) {
             shutterLabel = "AUTO"
