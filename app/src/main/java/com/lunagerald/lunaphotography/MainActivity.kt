@@ -91,9 +91,14 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        val wic = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
+        wic.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        wic.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         setContentView(R.layout.activity_main)
         cameraExecutor = Executors.newSingleThreadExecutor()
         previewView = findViewById(R.id.previewView)
+        previewView.scaleType = androidx.camera.view.PreviewView.ScaleType.FILL
         previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
         previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
         previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
