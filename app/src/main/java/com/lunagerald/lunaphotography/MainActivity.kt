@@ -109,25 +109,11 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         // MANUAL UI hook - STYLE ONLY. Heavy filter stays on save only.
         try {
             val root = findViewById<android.view.ViewGroup>(android.R.id.content)
-            IPhoneControls.onMode = { mode ->
-                if (mode == "NIGHT") exposureValue = 1f
-                if (mode == "PHOTO") exposureValue = 0f
-                if (mode == "CINEMATIC") exposureValue = 0.3f
-                try { applyExposure() } catch (e: Exception) {}
-            }
-            // M = manual shutter+ISO, S = shutter priority (ISO auto). Instant preview via exposure only.
-            // True Camera2 manual ISO/shutter is applied in startCamera() via Camera2Interop if present - do NOT add filter to preview.
-            IPhoneControls.onManual = { ns, iso, manual, auto ->
-                IPhoneControls.isoVal = iso
-                if (auto) { exposureValue = 0f } else { exposureValue = 0f }
-                try { applyExposure() } catch (e: Exception) {}
-                // Store for save-time pipeline: do not touch preview filter
-                try { manualShutterNs = ns; manualIso = iso; manualModeEnabled = manual } catch (e: Exception) {}
-            }
-            IPhoneControls.onZoom = { z -> currentZoom = z; currentCamera?.cameraControl?.setZoomRatio(z) }
-            IPhoneControls.onFlip = { try { lensFacing = if (lensFacing == androidx.camera.core.CameraSelector.LENS_FACING_BACK) androidx.camera.core.CameraSelector.LENS_FACING_FRONT else androidx.camera.core.CameraSelector.LENS_FACING_BACK; startCamera() } catch (e: Exception) {} }
-            IPhoneControls.onShutter = { try { captureImage() } catch (e: Exception) { try { takePhoto() } catch (e2: Exception) {} } }
-            IPhoneControls.setup(this, root)
+            val controls = IPhoneControls(this, root as android.widget.FrameLayout)
+        controls.build()
+        controls.onCapture = { try { captureImage() } catch (e: Exception) { try { takePhoto() } catch (e2: Exception) {} } }
+        controls.onManualChange = { ns, iso, wb, manual -> try { manualShutterNs = ns; manualIso = iso.coerceAtLeast(100); manualModeEnabled = manual; exposureValue = 0f; applyExposure() } catch (e: Exception) {} }
+        controls.onMode = { video -> try { exposureValue = if (video) 0f else 0f; applyExposure() } catch (e: Exception) {} }
         } catch (e: Exception) {}
         cameraExecutor = Executors.newSingleThreadExecutor()
         previewView = findViewById(R.id.previewView)
