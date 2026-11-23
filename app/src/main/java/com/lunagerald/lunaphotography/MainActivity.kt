@@ -78,7 +78,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     private var timerIndex = 0
     private var exposureValue = 0f
                 private fun applyProPipeline(src: android.graphics.Bitmap): android.graphics.Bitmap { val base = applyIPhoneFilter(src); val w = base.width; val h = base.height; val px = IntArray(w*h); base.getPixels(px,0,w,0,0,w,h); for (i in px.indices) { val c = px[i]; var r = android.graphics.Color.red(c).toFloat(); var g = android.graphics.Color.green(c).toFloat(); var b = android.graphics.Color.blue(c).toFloat(); val lum = (0.299f*r+0.587f*g+0.114f*b).toInt(); if (lum < 90) { val t = (1f-lum/90f)*0.08f; val avg=(r+g+b)/3f; r=r*(1f-t)+avg*t; g=g*(1f-t)+avg*t; b=b*(1f-t)+avg*t }; fun cur(v: Float): Float { val x=v/255f; var sc=x+0.18f*x*(1f-x)*(x-0.5f)*2f+(if (x>0.75f) 0f else (1f-x)*(1f-x)*0.032f)-x*x*x*0.045f; return sc.coerceIn(0f,1f)*255f }; val xr=cur(r)/255f; val xg=cur(g)/255f; val xb=cur(b)/255f; val warm=xr*xr*7f; val teal=(1f-xr)*(1f-xr)*5f; r=(cur(r)+warm-teal*0.6f).coerceIn(0f,255f); g=(cur(g)+teal*0.8f).coerceIn(0f,255f); b=(cur(b)-warm*0.7f+teal*0.6f).coerceIn(0f,255f); if (r>g && g>b && r>=110f && r<=245f && (r-g)>=12f && (r-g)<=62f && (g-b)>=8f && (g-b)<=42f && lum<120) { r=(r+6f).coerceIn(0f,255f); g=(g+5f).coerceIn(0f,255f); b=(b+4f).coerceIn(0f,255f) }; if (lum>220) { val over=(lum-220f)/35f; r=(r-over*10f).coerceIn(0f,255f); g=(g-over*10f).coerceIn(0f,255f); b=(b-over*10f).coerceIn(0f,255f) }; if (r>g && g>b && r>=110f && r<=245f && (r-g)>=12f && (r-g)<=62f && (g-b)>=8f && (g-b)<=42f) { r=(r*1.01f+1f)*0.85f+r*0.15f; g=(g*1.01f+1f)*0.85f+g*0.15f; b=b*0.99f*0.85f+b*0.15f } else if (b>r+18f && b>130f && (r-g)<25f) { r=r*0.98f*0.90f+r*0.10f; g=g*1.01f*0.90f+g*0.10f; b=(b*1.06f+2f)*0.90f+b*0.10f } else if (g>r+12f && g>b+8f && g>90f) { r=r*1.01f*0.90f+r*0.10f; g=g*0.98f*0.90f+g*0.10f; b=b*1.02f*0.90f+b*0.10f } else if (lum<85f) { r=r*0.97f*0.80f+r*0.20f; g=g*0.97f*0.80f+g*0.20f; b=b*0.97f*0.80f+b*0.20f }; val avg2=(r+g+b)/3f; val dR=r-avg2; val dG=g-avg2; val dB=b-avg2; val lim=10f; val det=if (lum in 30..220) 0.18f else 0.0f; val sR=if (kotlin.math.abs(dR)>6f) (dR*det).coerceIn(-lim,lim) else 0f; val sG=if (kotlin.math.abs(dG)>6f) (dG*det).coerceIn(-lim,lim) else 0f; val sB=if (kotlin.math.abs(dB)>6f) (dB*det).coerceIn(-lim,lim) else 0f; r=(r+sR).coerceIn(0f,255f); g=(g+sG).coerceIn(0f,255f); b=(b+sB).coerceIn(0f,255f); px[i]=android.graphics.Color.rgb(r.toInt(),g.toInt(),b.toInt()) }; val o=android.graphics.Bitmap.createBitmap(w,h,android.graphics.Bitmap.Config.ARGB_8888); o.setPixels(px,0,w,0,0,w,h); return o }
-    private fun autoLowLightExposure() { val cam = currentCamera ?: return; val st = cam.cameraInfo.exposureState; if (!st.isExposureCompensationSupported) return; if (exposureValue != 0f) return; val r = st.exposureCompensationRange; val idx = (0.7f * 10).toInt().coerceIn(r.lower, r.upper); if (idx > st.exposureCompensationIndex) cam.cameraControl.setExposureCompensationIndex(idx) }
+    private fun autoLowLightExposure() { val cam = currentCamera ?: return; val st = cam.cameraInfo.exposureState; if (!st.isExposureCompensationSupported) return; if (exposureValue != 0f) return; val r = st.exposureCompensationRange; val idx = (0.3f * 10).toInt().coerceIn(r.lower, r.upper); if (idx > st.exposureCompensationIndex) cam.cameraControl.setExposureCompensationIndex(idx) }
     private fun applyIPhoneFilter(src: android.graphics.Bitmap): android.graphics.Bitmap { val o = android.graphics.Bitmap.createBitmap(src.width, src.height, android.graphics.Bitmap.Config.ARGB_8888); val c = android.graphics.Canvas(o); val pa = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG); pa.colorFilter = android.graphics.ColorMatrixColorFilter(CINEMATIC_MATRIX); c.drawBitmap(src, 0f, 0f, pa); return o }
     private val CINEMATIC_MATRIX = android.graphics.ColorMatrix(floatArrayOf(0.94f,0.05f,0.01f,0f,2f, 0.03f,1.02f,0.02f,0f,0f, 0.01f,0.06f,0.95f,0f,-2f, 0f,0f,0f,1f,0f))
 
@@ -163,8 +163,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         val hi = zs2?.maxZoomRatio ?: 3f
         val clamped = ratio.coerceIn(lo, hi)
     val zs = cam.cameraInfo.zoomState.value
-    cam.cameraControl.setZoomRatio(clamped)
-    currentZoom = clamped
+    val startZ = currentZoom; val targetZ = clamped; val zh = android.os.Handler(android.os.Looper.getMainLooper()); var zStep = 0; val zr = object : Runnable { override fun run() { zStep++; val t = (zStep / 4f).coerceIn(0f, 1f); val zz = startZ + (targetZ - startZ) * t; cam.cameraControl.setZoomRatio(zz); currentZoom = zz; if (zStep < 4) zh.postDelayed(this, 16) } }; zh.post(zr)
         zoomPills.forEachIndexed { i, tv ->
             if (i == activeIndex) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) }
             else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) }
@@ -182,7 +181,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                 val extensionsManager = extensionsFuture.get()
                 val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
                 
-                val preview = Preview.Builder()
+                val preview = Preview.Builder().setTargetResolution(android.util.Size(1280,720)).setTargetFrameRate(android.util.Range(30,30))
                     .setTargetResolution(aspectResolutions[aspectIndex])
                     .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 
@@ -197,7 +196,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     // HDR selector disabled
                 }
                 
-                Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(CaptureRequest.TONEMAP_MODE, CaptureRequest.TONEMAP_MODE_HIGH_QUALITY).setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON).setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_HIGH_QUALITY).setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY).setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO).setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -1)
+                Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(CaptureRequest.TONEMAP_MODE, CaptureRequest.TONEMAP_MODE_HIGH_QUALITY).setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON).setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_FAST).setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_FAST).setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO).setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -1)
         imageCapture = captureBuilder.build()
                 imageCapture?.flashMode = flashModes[flashIndex]
                 
@@ -380,7 +379,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         styleIndex = (styleIndex + 1) % 3
         activeLook = styles[styleIndex % 3]
     }
-    override fun onDepthToggle(enabled: Boolean) { isDepthEnabled = enabled; startCamera() }
+    override fun onDepthToggle(enabled: Boolean) { isDepthEnabled = enabled }
     override fun onNightToggle(enabled: Boolean) { isNightMode = enabled; startCamera() }
     override fun onFormatCycle() { formatIndex = (formatIndex + 1) % 2 }
     private var isIPhoneOn=false
