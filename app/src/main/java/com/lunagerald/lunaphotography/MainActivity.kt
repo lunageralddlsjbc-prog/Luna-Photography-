@@ -111,6 +111,14 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
             val root = findViewById<android.view.ViewGroup>(android.R.id.content)
             val controls = IPhoneControls(this, root as android.widget.FrameLayout)
         controls.build()
+        // HIDE old XML UI - para dili mag-double / mag-overlap
+        try {
+          findViewById<android.view.View>(R.id.shutterBtn)?.visibility = android.view.View.GONE
+          findViewById<android.view.View>(R.id.switchBtn)?.visibility = android.view.View.GONE
+          findViewById<android.view.View>(R.id.flashPill)?.visibility = android.view.View.GONE
+          findViewById<android.view.View>(R.id.gearPill)?.visibility = android.view.View.GONE
+          listOf(R.id.zoomHalf, R.id.zoomOne, R.id.zoomThree, R.id.mTime, R.id.mSlo, R.id.mVideo, R.id.mPhoto, R.id.mPortrait, R.id.mPano).forEach { id -> findViewById<android.view.View>(id)?.visibility = android.view.View.GONE }
+        } catch (e: Exception) {}
         controls.onCapture = { try { captureImage() } catch (e: Exception) { try { takePhoto() } catch (e2: Exception) {} } }
         controls.onManualChange = { ns, iso, wb, manual -> try { manualShutterNs = ns; manualIso = iso.coerceAtLeast(100); manualModeEnabled = manual; exposureValue = 0f; applyExposure() } catch (e: Exception) {} }
         controls.onMode = { video -> try { exposureValue = if (video) 0f else 0f; applyExposure() } catch (e: Exception) {} }
