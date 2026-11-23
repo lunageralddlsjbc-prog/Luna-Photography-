@@ -156,6 +156,8 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         else ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
     }
 
+    } catch (e: Exception) {}
+} // end onCreate
     private var currentZoom = 1f
     private var pinchStartZoom = 1f
     private var isPinching = false
