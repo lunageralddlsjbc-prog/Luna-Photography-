@@ -118,6 +118,19 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         controls.onZoom = { z -> try { currentZoom = z; currentCamera?.cameraControl?.setZoomRatio(z) } catch (e: Exception) {} }
         controls.onFlip = { try { lensFacing = if (lensFacing == androidx.camera.core.CameraSelector.LENS_FACING_BACK) androidx.camera.core.CameraSelector.LENS_FACING_FRONT else androidx.camera.core.CameraSelector.LENS_FACING_BACK; startCamera() } catch (e: Exception) {} }
         try { listOf(R.id.shutterBtn, R.id.switchBtn, R.id.flashPill, R.id.gearPill, R.id.zoomHalf, R.id.zoomOne, R.id.zoomThree, R.id.mTime, R.id.mSlo, R.id.mVideo, R.id.mPhoto, R.id.mPortrait, R.id.mPano).forEach { id -> findViewById<android.view.View>(id)?.visibility = android.view.View.GONE } } catch (e: Exception) {}
+        cameraExecutor = Executors.newSingleThreadExecutor()
+        previewView = findViewById(R.id.previewView)
+        previewView.scaleType = androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
+        previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
+        focusRing = findViewById(R.id.focusRing)
+        val shutterBtn = findViewById<ImageButton>(R.id.shutterBtn)
+        val switchBtn = findViewById<ImageButton>(R.id.switchBtn)
+        val flashPill = findViewById<TextView>(R.id.flashPill)
+        val gearPill = findViewById<ImageView>(R.id.gearPill)
+        val zoomPills = listOf(findViewById<TextView>(R.id.zoomHalf), findViewById<TextView>(R.id.zoomOne), findViewById<TextView>(R.id.zoomThree))
+        val modePills = listOf(findViewById<TextView>(R.id.mTime), findViewById<TextView>(R.id.mSlo), findViewById<TextView>(R.id.mVideo), findViewById<TextView>(R.id.mPhoto), findViewById<TextView>(R.id.mPortrait), findViewById<TextView>(R.id.mPano))
+        quickMenu = QuickMenu(this, this)
+        shutterBtn.setOnClickListener { triggerHaptic(); takePhoto() }
         switchBtn.setOnClickListener { switchCameraWithAnimation() }
         flashPill.setOnClickListener {
             flashIndex = (flashIndex + 1) % flashModes.size
