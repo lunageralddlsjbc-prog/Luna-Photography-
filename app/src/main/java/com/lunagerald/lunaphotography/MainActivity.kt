@@ -139,13 +139,17 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     private fun setupPinchZoom(zoomPills: List<TextView>) {
         val det = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(d: android.view.ScaleGestureDetector): Boolean { isPinching = true; pinchStartZoom = currentZoom; return true }
-            override fun onScale(d: android.view.ScaleGestureDetector): Boolean { val z = (pinchStartZoom * d.scaleFactor).coerceIn(1f, 3f); currentZoom = z; currentCamera?.cameraControl?.setZoomRatio(z); val idx = if (z < 1.5f) 0 else if (z < 2.5f) 1 else 2; zoomPills.forEachIndexed { i, tv -> if (i == idx) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) } else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) } }; return true }
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean { val zs = currentCamera?.cameraInfo?.zoomState?.value; val hi = zs?.maxZoomRatio ?: 3f; val lo = zs?.minZoomRatio ?: 1f; val z = (pinchStartZoom * d.scaleFactor).coerceIn(lo, hi); currentZoom = z; currentCamera?.cameraControl?.setZoomRatio(z); val idx = if (z < 1.5f) 0 else if (z < 2.5f) 1 else 2; zoomPills.forEachIndexed { i, tv -> if (i == idx) { tv.setBackgroundResource(R.drawable.pill_active); tv.setTextColor(0xFF000000.toInt()) } else { tv.setBackgroundResource(R.drawable.pill_inactive); tv.setTextColor(0xFFFFFFFF.toInt()) } }; return true }
             override fun onScaleEnd(d: android.view.ScaleGestureDetector) { isPinching = false }
         })
         previewView.setOnTouchListener { _, event -> det.onTouchEvent(event); if (!isPinching && event.action == android.view.MotionEvent.ACTION_DOWN) { triggerHaptic(); showFocusRing(event.x, event.y); startTapToFocus(event.x, event.y) }; true }
     }
     private fun setZoom(ratio: Float, activeIndex: Int, zoomPills: List<TextView>) {
         val cam = currentCamera ?: return
+        val zs2 = cam.cameraInfo.zoomState.value
+        val lo = zs2?.minZoomRatio ?: 1f
+        val hi = zs2?.maxZoomRatio ?: 3f
+        val ratio = ratio.coerceIn(lo, hi)
     val zs = cam.cameraInfo.zoomState.value
     cam.cameraControl.setZoomRatio(ratio)
     currentZoom = ratio
@@ -197,6 +201,10 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
 
     private fun applyExposure() {
         val cam = currentCamera ?: return
+        val zs2 = cam.cameraInfo.zoomState.value
+        val lo = zs2?.minZoomRatio ?: 1f
+        val hi = zs2?.maxZoomRatio ?: 3f
+        val ratio = ratio.coerceIn(lo, hi)
         val state = cam.cameraInfo.exposureState
         if (!state.isExposureCompensationSupported) return
         val range = state.exposureCompensationRange
@@ -222,6 +230,10 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
 
     private fun startTapToFocus(x: Float, y: Float) {
         val cam = currentCamera ?: return
+        val zs2 = cam.cameraInfo.zoomState.value
+        val lo = zs2?.minZoomRatio ?: 1f
+        val hi = zs2?.maxZoomRatio ?: 3f
+        val ratio = ratio.coerceIn(lo, hi)
         val point = previewView.meteringPointFactory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
         cam.cameraControl.startFocusAndMetering(action)
