@@ -185,7 +185,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                     .setTargetResolution(aspectResolutions[aspectIndex])
                     .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 
-                val captureBuilder = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).setJpegQuality(100)
+                val captureBuilder = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).setJpegQuality(100)
                     
                     .setTargetResolution(aspectResolutions[aspectIndex])
                 
@@ -196,7 +196,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
     // HDR selector disabled
                 }
                 
-                Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(CaptureRequest.TONEMAP_MODE, CaptureRequest.TONEMAP_MODE_HIGH_QUALITY).setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON).setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_FAST).setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_FAST).setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO).setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -1)
+                Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(CaptureRequest.TONEMAP_MODE, CaptureRequest.TONEMAP_MODE_HIGH_QUALITY).setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF).setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, 8333333L).setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, 600).setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_FAST).setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_FAST).setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON).setCaptureRequestOption(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON).setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO).setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -1)
         imageCapture = captureBuilder.build()
                 imageCapture?.flashMode = flashModes[flashIndex]
                 
@@ -262,7 +262,9 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         }
     }
 
-    private fun captureImage() {
+    private var burstCount=0; private val burstList=mutableListOf<android.graphics.Bitmap>(); private var burstRot=0
+private fun sharpnessScore(b: android.graphics.Bitmap): Double { val w=160; val hh=(b.height*w/b.width.toFloat()).toInt().coerceAtLeast(1); val sm=android.graphics.Bitmap.createScaledBitmap(b,w,hh,true); val px=IntArray(w*hh); sm.getPixels(px,0,w,0,0,w,hh); if(sm!=b) sm.recycle(); var su=0.0; var sq=0.0; var n=0; for(y in 1 until hh-1){ for(x in 1 until w-1){ val g={i:Int->0.299*android.graphics.Color.red(px[i])+0.587*android.graphics.Color.green(px[i])+0.114*android.graphics.Color.blue(px[i])}; val lap=g(y*w+x-1)+g(y*w+x+1)+g((y-1)*w+x)+g((y+1)*w+x)-4*g(y*w+x); su+=lap; sq+=lap*lap; n++ } }; val m=su/n; return sq/n-m*m }
+private fun captureImage() {
         val capture = imageCapture ?: return
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, "LUNA_${System.currentTimeMillis()}.${if (formatIndex == 0) "jpg" else "heic"}")
@@ -274,7 +276,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         }
         val resolver = applicationContext.contentResolver
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues) ?: return
-        autoLowLightExposure(); capture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
+        capture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 try {
                     val rot = image.imageInfo.rotationDegrees
@@ -286,7 +288,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
                         yuvToBitmap(image)
                     }
                     image.close()
-                    val outputBitmap = applyProPipeline(sourceBitmap, rot)
+                    burstList.add(sourceBitmap); burstRot=rot; burstCount++; if (burstCount < 3) { capture.takePicture(cameraExecutor, this); return }; val best = burstList.maxByOrNull { sharpnessScore(it) } ?: sourceBitmap; for (b in burstList) { if (b != best) b.recycle() }; burstList.clear(); burstCount=0; val outputBitmap = applyProPipeline(best, burstRot)
                     sourceBitmap.recycle()
                     val bos = ByteArrayOutputStream()
                     if (formatIndex == 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
