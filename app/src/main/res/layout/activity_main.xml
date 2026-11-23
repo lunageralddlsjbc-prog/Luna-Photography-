@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000000">
     <androidx.camera.view.PreviewView android:id="@+id/previewView"
-        android:layout_width="match_parent"
         android:layout_height="match_parent" android:layout_width="0dp" android:layout_height="0dp" app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toTopOf="@id/modeSelector" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent" />
     <View android:id="@+id/focusRing" android:layout_width="70dp" android:layout_height="70dp" android:background="@drawable/focus_ring_bg" android:visibility="gone" android:clickable="false" android:focusable="false" app:layout_constraintTop_toTopOf="@id/previewView" app:layout_constraintBottom_toBottomOf="@id/previewView" app:layout_constraintStart_toStartOf="@id/previewView" app:layout_constraintEnd_toEndOf="@id/previewView" />
     <View android:id="@+id/shutterFlash" android:layout_width="0dp" android:layout_height="0dp" android:background="#FFFFFF" android:alpha="0" android:clickable="false" android:focusable="false" app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent" />
