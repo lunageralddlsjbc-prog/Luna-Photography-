@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         setContentView(R.layout.activity_main)
         cameraExecutor = Executors.newSingleThreadExecutor()
         previewView = findViewById(R.id.previewView)
-        previewView.scaleType = androidx.camera.view.PreviewView.ScaleType.FILL
+        previewView.scaleType = androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
         previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE)
         previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
         previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
