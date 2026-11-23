@@ -103,6 +103,24 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         wic.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
         wic.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         setContentView(R.layout.activity_main)
+        // iPhone controls - separate file, real wiring
+        try {
+            val root = findViewById<android.view.ViewGroup>(android.R.id.content)
+            IPhoneControls.onMode = { mode ->
+                if (mode=="NIGHT") exposureValue = 1f
+                if (mode=="PHOTO") exposureValue = 0f
+                if (mode=="CINEMATIC") exposureValue = 0.3f
+                try { applyExposure() } catch(e: Exception) {}
+            }
+            IPhoneControls.onWheel = { setting, v ->
+                if (setting=="EXPO") { exposureValue = (-20 + v*40/100)/10f; try { applyExposure() } catch(e: Exception) {} }
+                if (setting=="ZOOM") { val z = 0.5f + v*4.5f/100f; currentZoom = z; currentCamera?.cameraControl?.setZoomRatio(z) }
+                if (setting=="ISO") { IPhoneControls.isoVal = 50 + v*3150/100 }
+                if (setting=="SHUTTER") { IPhoneControls.shutterVal = 1000000000L / (30 + v*(1000-30)/100) }
+                if (setting=="FOCUS") { IPhoneControls.focusVal = v/100f }
+            }
+            IPhoneControls.setup(this, root)
+        } catch(e: Exception) {}
         cameraExecutor = Executors.newSingleThreadExecutor()
         previewView = findViewById(R.id.previewView)
         previewView.scaleType = androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
