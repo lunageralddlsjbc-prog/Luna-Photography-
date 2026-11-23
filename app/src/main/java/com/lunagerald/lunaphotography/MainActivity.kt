@@ -154,7 +154,6 @@ class MainActivity : AppCompatActivity(), QuickMenu.Callbacks {
         setupPinchZoom(zoomPills)
         if (allPermissionsGranted()) startCamera()
         else ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE)
-    }
 
     } catch (e: Exception) {}
 } // end onCreate
